@@ -1,6 +1,6 @@
 <?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
 
-class Welcome extends MY_Controller {
+class Welcome extends CI_Controller {
 
 	/**
 	 * Index Page for this controller.
@@ -19,6 +19,8 @@ class Welcome extends MY_Controller {
 	 */
 	public function index()
 	{
+	    $this->load->library('doctrine');
+	
 		$user = new models\User;
 		$user->setUsername('josephwynn');
 		$user->setPassword('Passw0rd');
