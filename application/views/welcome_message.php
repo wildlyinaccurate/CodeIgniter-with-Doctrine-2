@@ -33,7 +33,7 @@
 		padding: 14px 15px 10px 15px;
 	}
 
-	code {
+	code, pre {
 		font-family: Consolas, Monaco, Courier New, Courier, monospace;
 		font-size: 12px;
 		background-color: #f9f9f9;
@@ -95,7 +95,7 @@ $user->setPassword('Passw0rd');<br />
 $user->setEmail('wildlyinaccurate@gmail.com');</code>
 
 <p>Below is the output of print_r($user):</p>
-<code><pre><?php print_r($user); ?></pre></code>
+<pre><?php print_r($user); ?></pre>
 
 <p>The Doctrine console is ready for you to use. Just run <code class="inline"># ./application/doctrine</code> on Linux or <code class="inline"># php.exe ./application/doctrine.php</code> on Windows.</p>
 

@@ -15,10 +15,11 @@ use \Doctrine\Common\Collections\ArrayCollection;
  */
 class User
 {
-	/**
-	 * The User currently logged in
-	 */
-	public static $current;
+    /**
+     * Encryption key used as for password hashing
+     * @static
+     */
+    private static $encryption_key = '5p(TWrzR}KN|3nGV+6D#8Evkdx:]K"]azW*!A7:P5<84;{6kB)c6>D{="]RP/CC';
 
 	/**
 	 * @Id
@@ -66,41 +67,7 @@ class User
 	 */
 	public static function encryptPassword($password)
 	{
-		$CI =& get_instance();
-
-		$salt = $CI->config->item('encryption_key');
-		$encrypted_password = sha1($password . $salt);
-
-		return $encrypted_password;
-	}
-
-	/**
-	 * Authenticate this User by setting self::current to $this
-	 *
-	 * @return	User
-	 */
-	public function authenticate()
-	{
-		self::$current = $this;
-		return $this;
-	}
-
-	/**
-	 * Find a User account by username or email
-	 *
-	 * @static
-	 * @access	public
-	 * @param	string	$identifier
-	 * @return	User|FALSE
-	 */
-	public static function findUser($identifier)
-	{
-		$CI =& get_instance();
-
-		$user = $CI->em->createQuery("SELECT u FROM models\User u WHERE u.username = '{$identifier}' OR u.email = '{$identifier}'")
-					   ->getResult();
-
-		return $user ? $user[0] : FALSE;
+		return sha1($password . self::$encryption_key);
 	}
 	
 	// Begin generic set/get method stubs
