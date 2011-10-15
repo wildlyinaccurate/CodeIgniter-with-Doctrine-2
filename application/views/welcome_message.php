@@ -97,7 +97,7 @@ $user->setEmail('wildlyinaccurate@gmail.com');</code>
 <p>Below is the output of print_r($user):</p>
 <pre><?php print_r($user); ?></pre>
 
-<p>The Doctrine console is ready for you to use. Just run <code class="inline"># ./application/doctrine</code> on Linux or <code class="inline"># php.exe ./application/doctrine.php</code> on Windows.</p>
+<p>The Doctrine console is ready for you to use. Just run <code class="inline"># ./application/doctrine</code> on Linux & Mac, or <code class="inline"># php.exe ./application/doctrine.php</code> on Windows.</p>
 
 <p>For more information about integrating Doctrine with CodeIgniter, read <em><a href="http://wildlyinaccurate.com/integrating-doctrine-2-with-codeigniter-2/">Integrating Doctrine 2 with CodeIgniter 2</a></em>.</p>
 
