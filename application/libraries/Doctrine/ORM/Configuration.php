@@ -23,7 +23,6 @@ use Doctrine\Common\Cache\Cache,
     Doctrine\Common\Cache\ArrayCache,
     Doctrine\Common\Annotations\AnnotationRegistry,
     Doctrine\Common\Annotations\AnnotationReader,
-    Doctrine\Common\Annotations\SimpleAnnotationReader,
     Doctrine\ORM\Mapping\Driver\Driver,
     Doctrine\ORM\Mapping\Driver\AnnotationDriver;
 
@@ -129,7 +128,7 @@ class Configuration extends \Doctrine\DBAL\Configuration
             // Register the ORM Annotations in the AnnotationRegistry
             AnnotationRegistry::registerFile(__DIR__ . '/Mapping/Driver/DoctrineAnnotations.php');
 
-            $reader = new SimpleAnnotationReader();
+            $reader = new \Doctrine\Common\Annotations\SimpleAnnotationReader();
             $reader->addNamespace('Doctrine\ORM\Mapping');
             $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ArrayCache());
         } else if (version_compare(\Doctrine\Common\Version::VERSION, '2.1.0-DEV', '>=')) {
@@ -208,27 +207,6 @@ class Configuration extends \Doctrine\DBAL\Configuration
     {
         return isset($this->_attributes['metadataDriverImpl']) ?
                 $this->_attributes['metadataDriverImpl'] : null;
-    }
-
-    /**
-     * Gets the cache driver implementation that is used for query result caching.
-     *
-     * @return \Doctrine\Common\Cache\Cache
-     */
-    public function getResultCacheImpl()
-    {
-        return isset($this->_attributes['resultCacheImpl']) ?
-                $this->_attributes['resultCacheImpl'] : null;
-    }
-
-    /**
-     * Sets the cache driver implementation that is used for query result caching.
-     *
-     * @param \Doctrine\Common\Cache\Cache $cacheImpl
-     */
-    public function setResultCacheImpl(Cache $cacheImpl)
-    {
-        $this->_attributes['resultCacheImpl'] = $cacheImpl;
     }
 
     /**
@@ -516,5 +494,58 @@ class Configuration extends \Doctrine\DBAL\Configuration
             $this->_attributes['classMetadataFactoryName'] = 'Doctrine\ORM\Mapping\ClassMetadataFactory';
         }
         return $this->_attributes['classMetadataFactoryName'];
+    }
+
+    /**
+     * Add a filter to the list of possible filters.
+     *
+     * @param string $name The name of the filter.
+     * @param string $className The class name of the filter.
+     */
+    public function addFilter($name, $className)
+    {
+        $this->_attributes['filters'][$name] = $className;
+    }
+
+    /**
+     * Gets the class name for a given filter name.
+     *
+     * @param string $name The name of the filter.
+     *
+     * @return string The class name of the filter, or null of it is not
+     *  defined.
+     */
+    public function getFilterClassName($name)
+    {
+        return isset($this->_attributes['filters'][$name]) ?
+                $this->_attributes['filters'][$name] : null;
+    }
+
+    /**
+     * Set default repository class.
+     *
+     * @since 2.2
+     * @param string $className
+     * @throws ORMException If not is a \Doctrine\ORM\EntityRepository
+     */
+    public function setDefaultRepositoryClassName($className)
+    {
+        if ($className != "Doctrine\ORM\EntityRepository" &&
+           !is_subclass_of($className, 'Doctrine\ORM\EntityRepository')){
+            throw ORMException::invalidEntityRepository($className);
+        }
+        $this->_attributes['defaultRepositoryClassName'] = $className;
+    }
+
+    /**
+     * Get default repository class.
+     *
+     * @since 2.2
+     * @return string
+     */
+    public function getDefaultRepositoryClassName()
+    {
+        return isset($this->_attributes['defaultRepositoryClassName']) ?
+                $this->_attributes['defaultRepositoryClassName'] : 'Doctrine\ORM\EntityRepository';
     }
 }
