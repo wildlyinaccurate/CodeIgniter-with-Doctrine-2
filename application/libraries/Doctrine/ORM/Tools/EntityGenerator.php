@@ -128,10 +128,12 @@ public function <methodName>(<methodTypeHint>$<variableName><variableDefault>)
  * <description>
  *
  * @param <variableType>$<variableName>
+ * @return <entity>
  */
 public function <methodName>(<methodTypeHint>$<variableName>)
 {
 <spaces>$this-><fieldName>[] = $<variableName>;
+<spaces>return $this;
 }';
 
     private static $_lifecycleCallbackMethodTemplate =
@@ -681,6 +683,9 @@ public function <methodName>()
 
     private function _isAssociationIsNullable($associationMapping)
     {
+        if (isset($associationMapping['id']) && $associationMapping['id']) {
+            return false;
+        }
         if (isset($associationMapping['joinColumns'])) {
             $joinColumns = $associationMapping['joinColumns'];
         } else {
