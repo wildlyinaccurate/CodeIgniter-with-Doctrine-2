@@ -11,15 +11,10 @@ use \Doctrine\Common\Collections\ArrayCollection;
  *
  * @Entity
  * @Table(name="user")
- * @author Joseph Wynn
+ * @author  Joseph Wynn <joseph@wildlyinaccurate.com>
  */
 class User
 {
-    /**
-     * Encryption key used as for password hashing
-     * @static
-     */
-    private static $encryption_key = '5p(TWrzR}KN|3nGV+6D#8Evkdx:]K"]azW*!A7:P5<84;{6kB)c6>D{="]RP/CC';
 
 	/**
 	 * @Id
@@ -52,9 +47,7 @@ class User
 	 */
 	public function setPassword($password)
 	{
-		$encrypted_password = self::encryptPassword($password);
-
-		$this->password = $encrypted_password;
+		$this->password = $this->hashPassword($password);
 	}
 
 	/**
@@ -65,42 +58,45 @@ class User
 	 * @param	string	$password
 	 * @return	void
 	 */
-	public static function encryptPassword($password)
+	public function hashPassword($password)
 	{
-		return sha1($password . self::$encryption_key);
+		if ( ! $this->username)
+		{
+			throw new \Exception('The username must be set before the password can be hashed.');
+		}
+
+		return hash('sha256', $password . $this->username);
 	}
-	
-	// Begin generic set/get method stubs
+
 	public function setUsername($username)
 	{
 		$this->username = $username;
 		return $this;
 	}
-	
+
 	public function setEmail($email)
 	{
 		$this->email = $email;
 		return $this;
 	}
-	
+
 	public function getId()
 	{
 		return $this->id;
 	}
-	
+
 	public function getUsername()
 	{
 		return $this->username;
 	}
-	
+
 	public function getEmail()
 	{
 		return $this->email;
 	}
-	
+
 	public function getPassword()
 	{
 		return $this->password;
 	}
-	// End method stubs
 }
