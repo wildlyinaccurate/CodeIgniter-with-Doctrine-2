@@ -1,85 +1,55 @@
 <?php
-use Doctrine\ORM\EntityManager,
-	Doctrine\ORM\Configuration;
 
-define('DEBUGGING', FALSE);
+use Doctrine\Common\ClassLoader,
+	Doctrine\ORM\Tools\Setup,
+	Doctrine\ORM\EntityManager;
 
-class Doctrine {
+/**
+ * Doctrine bootstrap library for CodeIgniter
+ *
+ * @author	Joseph Wynn <joseph@wildlyinaccurate.com>
+ * @link	http://wildlyinaccurate.com/integrating-doctrine-2-with-codeigniter-2
+ */
+class Doctrine
+{
 
-	public $em = null;
+	public $em;
 
 	public function __construct()
 	{
-		// load database configuration and custom config from CodeIgniter
+		require_once __DIR__ . '/Doctrine/ORM/Tools/Setup.php';
+		Setup::registerAutoloadDirectory(__DIR__);
+
+		// Load the database configuration from CodeIgniter
 		require APPPATH . 'config/database.php';
 
-		// Set up class loading.
-		require_once APPPATH . 'libraries/Doctrine/Common/ClassLoader.php';
-
-		$doctrineClassLoader = new \Doctrine\Common\ClassLoader('Doctrine', APPPATH . 'libraries');
-		$doctrineClassLoader->register();
-
-		$entitiesClassLoader = new \Doctrine\Common\ClassLoader('models', rtrim(APPPATH, '/'));
-		$entitiesClassLoader->register();
-
-		$proxiesClassLoader = new \Doctrine\Common\ClassLoader('Proxies', APPPATH . 'models');
-		$proxiesClassLoader->register();
-
-		$symfonyClassLoader = new \Doctrine\Common\ClassLoader('Symfony', APPPATH . 'libraries/Doctrine');
-		$symfonyClassLoader->register();
-
-		// Choose caching method based on application mode
-		if (ENVIRONMENT == 'production')
-		{
-			$cache = new \Doctrine\Common\Cache\ApcCache;
-		}
-		else
-		{
-			$cache = new \Doctrine\Common\Cache\ArrayCache;
-		}
-
-		// Set some configuration options
-		$config = new Configuration;
-
-		// Metadata driver
-		$driverImpl = $config->newDefaultAnnotationDriver(APPPATH . 'models');	
-		$config->setMetadataDriverImpl($driverImpl);
-
-		// Caching
-		$config->setMetadataCacheImpl($cache);
-		$config->setQueryCacheImpl($cache);
-
-		// Proxies
-		$config->setProxyDir(APPPATH . 'models/Proxies');
-		$config->setProxyNamespace('Proxies');
-
-		if (ENVIRONMENT == 'development') {
-			$config->setAutoGenerateProxyClasses(TRUE);
-		} else {
-			$config->setAutoGenerateProxyClasses(FALSE);
-		}
-
-		// SQL query logger
-		if (DEBUGGING)
-		{
-			$logger = new \Doctrine\DBAL\Logging\EchoSQLLogger;
-			$config->setSQLLogger($logger);
-		}
-
-		// Database connection information
-		$connectionOptions = array(
+		$connection_options = array(
 			'driver'		=> 'pdo_mysql',
 			'user'			=> $db['default']['username'],
 			'password'		=> $db['default']['password'],
 			'host'			=> $db['default']['hostname'],
 			'dbname'		=> $db['default']['database'],
 			'charset'		=> $db['default']['char_set'],
-			'driverOptions'	=> array( 
-				'charset' 	=> $db['default']['char_set'] 
-			)
+			'driverOptions'	=> array(
+				'charset'	=> $db['default']['char_set'],
+			),
 		);
 
-		// Create EntityManager
-		$this->em = EntityManager::create($connectionOptions, $config);
+		// With this configuration, your model files need to be in application/models/Entity
+		// e.g. Creating a new Entity\User loads the class from application/models/Entity/User.php
+		$models_namespace = 'Entity';
+		$models_path = APPPATH . 'models';
+		$proxies_dir = APPPATH . 'models/Proxies';
+		$metadata_paths = array(APPPATH . 'models');
+
+		// Set $dev_mode to TRUE to disable caching while you develop
+		$dev_mode = false;
+
+		$config = Setup::createAnnotationMetadataConfiguration($metadata_paths, $dev_mode, $proxies_dir);
+		$this->em = EntityManager::create($connection_options, $config);
+
+		$loader = new ClassLoader($models_namespace, $models_path);
+		$loader->register();
 	}
+
 }

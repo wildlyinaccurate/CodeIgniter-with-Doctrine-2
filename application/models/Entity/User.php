@@ -1,13 +1,9 @@
 <?php
 
-namespace models;
-
-use \Doctrine\Common\Collections\ArrayCollection;
+namespace Entity;
 
 /**
  * User Model
- *
- * This is a sample model to demonstrate how to use the AnnotationDriver
  *
  * @Entity
  * @Table(name="user")
@@ -39,9 +35,31 @@ class User
 	protected $email;
 
 	/**
+	 * @ManyToOne(targetEntity="Group")
+	 * @JoinColumn(name="group_id", referencedColumnName="id")
+	 */
+	protected $group;
+
+	/**
+	 * Assign the user to a group
+	 *
+	 * @param	Entity\Group	$group
+	 * @return	void
+	 */
+	public function setGroup(Group $group)
+	{
+		$this->group = $group;
+
+		// The association must be defined in both directions
+		if ( ! $group->getUsers()->contains($this))
+		{
+			$group->addUser($this);
+		}
+	}
+
+	/**
 	 * Encrypt the password before we store it
 	 *
-	 * @access	public
 	 * @param	string	$password
 	 * @return	void
 	 */
@@ -53,10 +71,8 @@ class User
 	/**
 	 * Encrypt a Password
 	 *
-	 * @static
-	 * @access	public
 	 * @param	string	$password
-	 * @return	void
+	 * @return	string
 	 */
 	public function hashPassword($password)
 	{
@@ -99,4 +115,15 @@ class User
 	{
 		return $this->password;
 	}
+
+	/**
+	 * Get group
+	 *
+	 * @return Entity\Group
+	 */
+	public function getGroup()
+	{
+		return $this->group;
+	}
+
 }

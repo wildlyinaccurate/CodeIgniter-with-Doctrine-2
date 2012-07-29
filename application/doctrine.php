@@ -1,4 +1,10 @@
 <?php
+/**
+ * Doctrine CLI bootstrap for CodeIgniter
+ *
+ * @author  Joseph Wynn <joseph@wildlyinaccurate.com>
+ * @link    http://wildlyinaccurate.com/integrating-doctrine-2-with-codeigniter-2
+ */
 
 define('APPPATH', dirname(__FILE__) . '/');
 define('BASEPATH', APPPATH . '/../system/');
@@ -6,31 +12,12 @@ define('ENVIRONMENT', 'development');
 
 chdir(APPPATH);
 
-require_once 'libraries/Doctrine/Common/ClassLoader.php';
+require __DIR__ . '/libraries/Doctrine.php';
 
-$classLoader = new \Doctrine\Common\ClassLoader('Doctrine', 'libraries');
-$classLoader->register();
-
-$classLoader = new \Doctrine\Common\ClassLoader('Symfony', 'libraries/Doctrine');
-$classLoader->register();
-
-$configFile = getcwd() . '/libraries/Doctrine.php';
-
-$helperSet = null;
-if (file_exists($configFile)) {
-    if ( ! is_readable($configFile)) {
-        trigger_error(
-            'Configuration file [' . $configFile . '] does not have read permission.', E_ERROR
-        );
-    }
-
-    require $configFile;
-
-    foreach ($GLOBALS as $helperSetCandidate) {
-        if ($helperSetCandidate instanceof \Symfony\Component\Console\Helper\HelperSet) {
-            $helperSet = $helperSetCandidate;
-            break;
-        }
+foreach ($GLOBALS as $helperSetCandidate) {
+    if ($helperSetCandidate instanceof \Symfony\Component\Console\Helper\HelperSet) {
+        $helperSet = $helperSetCandidate;
+        break;
     }
 }
 
