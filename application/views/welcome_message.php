@@ -82,15 +82,12 @@
 <code>$this->load->library('doctrine');<br />
 $em = $this->doctrine->em;</code>
 
-<p>Or through the shortcut property in MY_Controller:</p>
-<code>$this->em;</code>
-
 <p>Two sample models has been created for you in:</p>
 <pre>application/models/Entity/User.php
-application/models/Entity/Group.php</pre>
+application/models/Entity/UserGroup.php</pre>
 
 <p>The following code was used in the Welcome controller to create new User and Group entities.</p>
-<pre>$group = new Entity\Group;
+<pre>$group = new Entity\UserGroup;
 $group->setName('Users');
 
 $user = new Entity\User;
