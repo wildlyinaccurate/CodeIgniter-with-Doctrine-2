@@ -5,13 +5,13 @@ namespace Entity;
 use Doctrine\Common\Collections\ArrayCollection;
 
 /**
- * Group Model
+ * User Group Model
  *
  * @Entity
- * @Table(name="group")
+ * @Table(name="user_group")
  * @author  Joseph Wynn <joseph@wildlyinaccurate.com>
  */
-class Group
+class UserGroup
 {
 
     /**

@@ -35,7 +35,7 @@ class User
 	protected $email;
 
 	/**
-	 * @ManyToOne(targetEntity="Group")
+	 * @ManyToOne(targetEntity="UserGroup")
 	 * @JoinColumn(name="group_id", referencedColumnName="id")
 	 */
 	protected $group;
@@ -43,10 +43,10 @@ class User
 	/**
 	 * Assign the user to a group
 	 *
-	 * @param	Entity\Group	$group
+	 * @param	Entity\UserGroup	$group
 	 * @return	void
 	 */
-	public function setGroup(Group $group)
+	public function setGroup(UserGroup $group)
 	{
 		$this->group = $group;
 
@@ -119,7 +119,7 @@ class User
 	/**
 	 * Get group
 	 *
-	 * @return Entity\Group
+	 * @return Entity\UserGroup
 	 */
 	public function getGroup()
 	{
