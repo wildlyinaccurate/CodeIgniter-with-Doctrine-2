@@ -21,7 +21,7 @@ class Welcome extends CI_Controller {
 	{
 		$this->load->library('doctrine');
 
-		$group = new Entity\Group;
+		$group = new Entity\UserGroup;
 		$group->setName('Users');
 
 		$user = new Entity\User;
