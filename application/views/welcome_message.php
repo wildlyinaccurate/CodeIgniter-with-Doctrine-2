@@ -74,20 +74,22 @@
 </head>
 <body>
 
-<h1>Welcome to CodeIgniter with Doctrine!</h1>
+<div id="container">
+	<h1>Welcome to CodeIgniter with Doctrine!</h1>
 
-<p>This installation of CodeIgniter with Doctrine 2 has been created and configured by Joseph Wynn from <a href="http://wildlyinaccurate.com/">Wildly Inaccurate</a>.</p>
+	<div id="body">
+		<p>This installation of CodeIgniter with Doctrine 2 has been created and configured by Joseph Wynn from <a href="http://wildlyinaccurate.com/">Wildly Inaccurate</a>.</p>
 
-<p>You can access the Doctrine Entity Manager in your controllers through the Doctrine library:</p>
-<code>$this->load->library('doctrine');<br />
-$em = $this->doctrine->em;</code>
+		<p>You can access the Doctrine Entity Manager in your controllers through the Doctrine library:</p>
+		<code>$this->load->library('doctrine');<br />
+		$em = $this->doctrine->em;</code>
 
-<p>Two sample models has been created for you in:</p>
-<pre>application/models/Entity/User.php
+		<p>Two sample models has been created for you in:</p>
+		<pre>application/models/Entity/User.php
 application/models/Entity/UserGroup.php</pre>
 
-<p>The following code was used in the Welcome controller to create new User and Group entities.</p>
-<pre>$group = new Entity\UserGroup;
+		<p>The following code was used in the Welcome controller to create new User and Group entities.</p>
+		<pre>$group = new Entity\UserGroup;
 $group->setName('Users');
 
 $user = new Entity\User;
@@ -96,22 +98,24 @@ $user->setPassword('Passw0rd');
 $user->setEmail('wildlyinaccurate@gmail.com');
 $user->setGroup($group);</pre>
 
-<p>Below is the output of <code class="inline">print_r($user)</code>:</p>
-<pre><?php print_r($user); ?></pre>
+		<p>Below is the output of <code class="inline">print_r($user)</code>:</p>
+		<pre><?php print_r($user); ?></pre>
 
-<p>And <code class="inline">print_r($group)</code>:</p>
-<pre><?php print_r($group); ?></pre>
+		<p>And <code class="inline">print_r($group)</code>:</p>
+		<pre><?php print_r($group); ?></pre>
 
-<p>The Doctrine console is ready for you to use. Just run <code class="inline">./application/doctrine</code> on Linux & Mac, or <code class="inline">php.exe ./application/doctrine.php</code> on Windows.</p>
+		<p>The Doctrine console is ready for you to use. Just run <code class="inline">./application/doctrine</code> on Linux & Mac, or <code class="inline">php.exe ./application/doctrine.php</code> on Windows.</p>
 
-<p>For more information about integrating Doctrine with CodeIgniter, read <em><a href="http://wildlyinaccurate.com/integrating-doctrine-2-with-codeigniter-2/">Integrating Doctrine 2 with CodeIgniter 2</a></em>.</p>
+		<p>For more information about integrating Doctrine with CodeIgniter, read <em><a href="http://wildlyinaccurate.com/integrating-doctrine-2-with-codeigniter-2/">Integrating Doctrine 2 with CodeIgniter 2</a></em>.</p>
 
-<h2>Version Information</h2>
-<pre>CodeIgniter <?php echo CI_VERSION; ?>
+		<h2>Version Information</h2>
+		<pre>CodeIgniter <?php echo CI_VERSION; ?>
 
 Doctrine <?php echo \Doctrine\Common\Version::VERSION; ?></pre>
+	</div>
 
-<p><br />Page rendered in {elapsed_time} seconds</p>
+	<p class="footer">Page rendered in <strong>{elapsed_time}</strong> seconds</p>
+</div>
 
 </body>
 </html>
