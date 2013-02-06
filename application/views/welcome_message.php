@@ -111,7 +111,7 @@ $user->setGroup($group);</pre>
 		<h2>Version Information</h2>
 		<pre>CodeIgniter <?php echo CI_VERSION; ?>
 
-Doctrine <?php echo \Doctrine\Common\Version::VERSION; ?></pre>
+Doctrine <?php echo \Doctrine\ORM\Version::VERSION; ?></pre>
 	</div>
 
 	<p class="footer">Page rendered in <strong>{elapsed_time}</strong> seconds</p>
