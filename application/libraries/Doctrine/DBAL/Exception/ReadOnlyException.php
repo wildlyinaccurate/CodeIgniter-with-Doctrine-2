@@ -17,36 +17,15 @@
  * <http://www.doctrine-project.org>.
  */
 
-namespace Doctrine\ORM\Proxy;
+namespace Doctrine\DBAL\Exception;
 
 /**
- * ORM Proxy Exception
+ * Exception for a write operation attempt on a read-only database element detected in the driver.
  *
- * @license     http://www.opensource.org/licenses/lgpl-license.php LGPL
- * @link        www.doctrine-project.com
- * @since       1.0
- * @author      Benjamin Eberlei <kontakt@beberlei.de>
+ * @author Steve Müller <st.mueller@dzh-online.de>
+ * @link   www.doctrine-project.org
+ * @since  2.5
  */
-class ProxyException extends \Doctrine\ORM\ORMException {
-
-    public static function proxyDirectoryRequired() {
-        return new self("You must configure a proxy directory. See docs for details");
-    }
-
-    public static function proxyDirectoryNotWritable() {
-        return new self("Your proxy directory must be writable.");
-    }
-
-    public static function proxyNamespaceRequired() {
-        return new self("You must configure a proxy namespace. See docs for details");
-    }
-
-    public static function notProxyClass($className, $proxyNamespace)
-    {
-        return new self(sprintf(
-            "The class %s is not part of the proxy namespace %s",
-            $className, $proxyNamespace
-        ));
-    }
-
+class ReadOnlyException extends ServerException
+{
 }

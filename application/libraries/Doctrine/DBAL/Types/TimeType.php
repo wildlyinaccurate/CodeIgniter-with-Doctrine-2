@@ -28,6 +28,9 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
  */
 class TimeType extends Type
 {
+    /**
+     * {@inheritdoc}
+     */
     public function getName()
     {
         return Type::TIME;
@@ -59,10 +62,11 @@ class TimeType extends Type
             return $value;
         }
 
-        $val = \DateTime::createFromFormat($platform->getTimeFormatString(), $value);
+        $val = \DateTime::createFromFormat('!' . $platform->getTimeFormatString(), $value);
         if ( ! $val) {
             throw ConversionException::conversionFailedFormat($value, $this->getName(), $platform->getTimeFormatString());
         }
+
         return $val;
     }
 }

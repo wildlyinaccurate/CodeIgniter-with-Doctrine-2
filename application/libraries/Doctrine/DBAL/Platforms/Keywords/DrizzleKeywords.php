@@ -17,21 +17,26 @@
  * <http://www.doctrine-project.org>.
  */
 
-
 namespace Doctrine\DBAL\Platforms\Keywords;
 
 /**
- * Drizzle Keywordlist
+ * Drizzle Keywordlist.
  *
- * @author Kim Hemsø Rasmussen <kimhemsoe@gmail.com> 
+ * @author Kim Hemsø Rasmussen <kimhemsoe@gmail.com>
  */
 class DrizzleKeywords extends KeywordList
 {
+    /**
+     * {@inheritdoc}
+     */
     public function getName()
     {
         return 'drizzle';
     }
 
+    /**
+     * {@inheritdoc}
+     */
     protected function getKeywords()
     {
         return array(

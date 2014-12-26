@@ -1,5 +1,4 @@
 <?php
-
 /*
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -20,24 +19,23 @@
 
 namespace Doctrine\DBAL\Schema\Visitor;
 
-use Doctrine\DBAL\Platforms\AbstractPlatform,
- Doctrine\DBAL\Schema\Table,
- Doctrine\DBAL\Schema\Schema,
- Doctrine\DBAL\Schema\Column,
- Doctrine\DBAL\Schema\ForeignKeyConstraint,
- Doctrine\DBAL\Schema\Constraint,
- Doctrine\DBAL\Schema\Sequence,
- Doctrine\DBAL\Schema\Index;
+use Doctrine\DBAL\Schema\Table;
+use Doctrine\DBAL\Schema\Schema;
+use Doctrine\DBAL\Schema\ForeignKeyConstraint;
 
-class Graphviz implements \Doctrine\DBAL\Schema\Visitor\Visitor
+/**
+ * Create a Graphviz output of a Schema.
+ */
+class Graphviz extends AbstractVisitor
 {
+    /**
+     * @var string
+     */
     private $output = '';
 
-    public function acceptColumn(Table $table, Column $column)
-    {
-
-    }
-
+    /**
+     * {@inheritdoc}
+     */
     public function acceptForeignKey(Table $localTable, ForeignKeyConstraint $fkConstraint)
     {
         $this->output .= $this->createNodeRelation(
@@ -51,14 +49,12 @@ class Graphviz implements \Doctrine\DBAL\Schema\Visitor\Visitor
         );
     }
 
-    public function acceptIndex(Table $table, Index $index)
-    {
-
-    }
-
+    /**
+     * {@inheritdoc}
+     */
     public function acceptSchema(Schema $schema)
     {
-        $this->output  = 'digraph "' . sha1( mt_rand() ) . '" {' . "\n";
+        $this->output  = 'digraph "' . sha1(mt_rand()) . '" {' . "\n";
         $this->output .= 'splines = true;' . "\n";
         $this->output .= 'overlap = false;' . "\n";
         $this->output .= 'outputorder=edgesfirst;'."\n";
@@ -66,23 +62,26 @@ class Graphviz implements \Doctrine\DBAL\Schema\Visitor\Visitor
         $this->output .= 'sep = .2;' . "\n";
     }
 
-    public function acceptSequence(Sequence $sequence)
-    {
-
-    }
-
+    /**
+     * {@inheritdoc}
+     */
     public function acceptTable(Table $table)
     {
         $this->output .= $this->createNode(
             $table->getName(),
             array(
-                'label' => $this->createTableLabel( $table ),
+                'label' => $this->createTableLabel($table),
                 'shape' => 'plaintext',
             )
         );
     }
 
-    private function createTableLabel( Table $table )
+    /**
+     * @param \Doctrine\DBAL\Schema\Table $table
+     *
+     * @return string
+     */
+    private function createTableLabel(Table $table)
     {
         // Start the table
         $label = '<<TABLE CELLSPACING="0" BORDER="1" ALIGN="LEFT">';
@@ -91,7 +90,7 @@ class Graphviz implements \Doctrine\DBAL\Schema\Visitor\Visitor
         $label .= '<TR><TD BORDER="1" COLSPAN="3" ALIGN="CENTER" BGCOLOR="#fcaf3e"><FONT COLOR="#2e3436" FACE="Helvetica" POINT-SIZE="12">' . $table->getName() . '</FONT></TD></TR>';
 
         // The attributes block
-        foreach( $table->getColumns() as $column ) {
+        foreach ($table->getColumns() as $column) {
             $columnLabel = $column->getName();
 
             $label .= '<TR>';
@@ -111,30 +110,53 @@ class Graphviz implements \Doctrine\DBAL\Schema\Visitor\Visitor
         return $label;
     }
 
-    private function createNode( $name, $options )
+    /**
+     * @param string $name
+     * @param array  $options
+     *
+     * @return string
+     */
+    private function createNode($name, $options)
     {
         $node = $name . " [";
-        foreach( $options as $key => $value )
-        {
+        foreach ($options as $key => $value) {
             $node .= $key . '=' . $value . ' ';
         }
         $node .= "]\n";
+
         return $node;
     }
 
-    private function createNodeRelation( $node1, $node2, $options )
+    /**
+     * @param string $node1
+     * @param string $node2
+     * @param array  $options
+     *
+     * @return string
+     */
+    private function createNodeRelation($node1, $node2, $options)
     {
         $relation = $node1 . ' -> ' . $node2 . ' [';
-        foreach( $options as $key => $value )
-        {
+        foreach ($options as $key => $value) {
             $relation .= $key . '=' . $value . ' ';
         }
         $relation .= "]\n";
+
         return $relation;
     }
 
     /**
-     * Write dot language output to a file. This should usually be a *.dot file.
+     * Get Graphviz Output
+     *
+     * @return string
+     */
+    public function getOutput()
+    {
+        return $this->output . "}";
+    }
+
+    /**
+     * Writes dot language output to a file. This should usually be a *.dot file.
      *
      * You have to convert the output into a viewable format. For example use "neato" on linux systems
      * and execute:
@@ -142,10 +164,11 @@ class Graphviz implements \Doctrine\DBAL\Schema\Visitor\Visitor
      *  neato -Tpng -o er.png er.dot
      *
      * @param string $filename
+     *
      * @return void
      */
     public function write($filename)
     {
-        file_put_contents($filename, $this->output . "}");
+        file_put_contents($filename, $this->getOutput());
     }
 }

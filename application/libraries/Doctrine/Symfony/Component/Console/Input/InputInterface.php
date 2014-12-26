@@ -23,7 +23,7 @@ interface InputInterface
      *
      * @return string The value of the first argument or null otherwise
      */
-    function getFirstArgument();
+    public function getFirstArgument();
 
     /**
      * Returns true if the raw parameters (not parsed) contain a value.
@@ -33,9 +33,9 @@ interface InputInterface
      *
      * @param string|array $values The values to look for in the raw parameters (can be an array)
      *
-     * @return Boolean true if the value is contained in the raw parameters
+     * @return bool true if the value is contained in the raw parameters
      */
-    function hasParameterOption($values);
+    public function hasParameterOption($values);
 
     /**
      * Returns the value of a raw option (not parsed).
@@ -48,14 +48,14 @@ interface InputInterface
      *
      * @return mixed The option value
      */
-    function getParameterOption($values, $default = false);
+    public function getParameterOption($values, $default = false);
 
     /**
      * Binds the current Input instance with the given arguments and options.
      *
      * @param InputDefinition $definition A InputDefinition instance
      */
-    function bind(InputDefinition $definition);
+    public function bind(InputDefinition $definition);
 
     /**
      * Validates if arguments given are correct.
@@ -64,14 +64,14 @@ interface InputInterface
      *
      * @throws \RuntimeException
      */
-    function validate();
+    public function validate();
 
     /**
      * Returns all the given arguments merged with the default values.
      *
      * @return array
      */
-    function getArguments();
+    public function getArguments();
 
     /**
      * Gets argument by name.
@@ -80,7 +80,7 @@ interface InputInterface
      *
      * @return mixed
      */
-    function getArgument($name);
+    public function getArgument($name);
 
     /**
      * Sets an argument value by name.
@@ -90,23 +90,23 @@ interface InputInterface
      *
      * @throws \InvalidArgumentException When argument given doesn't exist
      */
-    function setArgument($name, $value);
+    public function setArgument($name, $value);
 
     /**
      * Returns true if an InputArgument object exists by name or position.
      *
-     * @param string|integer $name The InputArgument name or position
+     * @param string|int $name The InputArgument name or position
      *
-     * @return Boolean true if the InputArgument object exists, false otherwise
+     * @return bool true if the InputArgument object exists, false otherwise
      */
-    function hasArgument($name);
+    public function hasArgument($name);
 
     /**
      * Returns all the given options merged with the default values.
      *
      * @return array
      */
-    function getOptions();
+    public function getOptions();
 
     /**
      * Gets an option by name.
@@ -115,38 +115,38 @@ interface InputInterface
      *
      * @return mixed
      */
-    function getOption($name);
+    public function getOption($name);
 
     /**
      * Sets an option value by name.
      *
-     * @param string $name  The option name
-     * @param string $value The option value
+     * @param string      $name  The option name
+     * @param string|bool $value The option value
      *
      * @throws \InvalidArgumentException When option given doesn't exist
      */
-    function setOption($name, $value);
+    public function setOption($name, $value);
 
     /**
      * Returns true if an InputOption object exists by name.
      *
      * @param string $name The InputOption name
      *
-     * @return Boolean true if the InputOption object exists, false otherwise
+     * @return bool true if the InputOption object exists, false otherwise
      */
-    function hasOption($name);
+    public function hasOption($name);
 
     /**
      * Is this input means interactive?
      *
-     * @return Boolean
+     * @return bool
      */
-    function isInteractive();
+    public function isInteractive();
 
     /**
      * Sets the input interactivity.
      *
-     * @param Boolean $interactive If the input should be interactive
+     * @param bool $interactive If the input should be interactive
      */
-    function setInteractive($interactive);
+    public function setInteractive($interactive);
 }

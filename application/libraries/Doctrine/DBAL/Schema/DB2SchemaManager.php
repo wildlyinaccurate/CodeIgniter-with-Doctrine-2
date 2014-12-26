@@ -1,7 +1,5 @@
 <?php
 /*
- *  $Id$
- *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -17,31 +15,24 @@
  * This software consists of voluntary contributions made by many individuals
  * and is licensed under the MIT license. For more information, see
  * <http://www.doctrine-project.org>.
-*/
+ */
 
 namespace Doctrine\DBAL\Schema;
 
-use Doctrine\DBAL\Event\SchemaIndexDefinitionEventArgs;
-use Doctrine\DBAL\Events;
-
 /**
- * IBM Db2 Schema Manager
+ * IBM Db2 Schema Manager.
  *
- * @license     http://www.opensource.org/licenses/lgpl-license.php LGPL
- * @link        www.doctrine-project.com
- * @since       1.0
- * @version     $Revision$
- * @author      Benjamin Eberlei <kontakt@beberlei.de>
+ * @link   www.doctrine-project.org
+ * @since  1.0
+ * @author Benjamin Eberlei <kontakt@beberlei.de>
  */
 class DB2SchemaManager extends AbstractSchemaManager
 {
     /**
-     * Return a list of all tables in the current database
+     * {@inheritdoc}
      *
      * Apparently creator is the schema not the user who created it:
      * {@link http://publib.boulder.ibm.com/infocenter/dzichelp/v2r2/index.jsp?topic=/com.ibm.db29.doc.sqlref/db2z_sysibmsystablestable.htm}
-     *
-     * @return array
      */
     public function listTableNames()
     {
@@ -53,12 +44,8 @@ class DB2SchemaManager extends AbstractSchemaManager
         return $this->_getPortableTablesList($tables);
     }
 
-
     /**
-     * Get Table Column Definition
-     *
-     * @param array $tableColumn
-     * @return Column
+     * {@inheritdoc}
      */
     protected function _getPortableTableColumnDefinition($tableColumn)
     {
@@ -69,6 +56,12 @@ class DB2SchemaManager extends AbstractSchemaManager
         $unsigned = false;
         $scale = false;
         $precision = false;
+
+        $default = null;
+
+        if (null !== $tableColumn['default'] && 'NULL' != $tableColumn['default']) {
+            $default = trim($tableColumn['default'], "'");
+        }
 
         $type = $this->_platform->getDoctrineTypeMapping($tableColumn['typename']);
 
@@ -96,7 +89,8 @@ class DB2SchemaManager extends AbstractSchemaManager
             'length'        => $length,
             'unsigned'      => (bool)$unsigned,
             'fixed'         => (bool)$fixed,
-            'default'       => ($tableColumn['default'] == "NULL") ? null : $tableColumn['default'],
+            'default'       => $default,
+            'autoincrement' => (boolean) $tableColumn['autoincrement'],
             'notnull'       => (bool) ($tableColumn['nulls'] == 'N'),
             'scale'         => null,
             'precision'     => null,
@@ -111,6 +105,9 @@ class DB2SchemaManager extends AbstractSchemaManager
         return new Column($tableColumn['colname'], \Doctrine\DBAL\Types\Type::getType($type), $options);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     protected function _getPortableTablesList($tables)
     {
         $tableNames = array();
@@ -118,85 +115,84 @@ class DB2SchemaManager extends AbstractSchemaManager
             $tableRow = array_change_key_case($tableRow, \CASE_LOWER);
             $tableNames[] = $tableRow['name'];
         }
+
         return $tableNames;
     }
 
-    protected function _getPortableTableIndexesList($tableIndexes, $tableName=null)
+    /**
+     * {@inheritdoc}
+     */
+    protected function _getPortableTableIndexesList($tableIndexRows, $tableName = null)
     {
-        $eventManager = $this->_platform->getEventManager();
-
-        $indexes = array();
-        foreach($tableIndexes as $indexKey => $data) {
-            $data = array_change_key_case($data, \CASE_LOWER);
-            $unique = ($data['uniquerule'] == "D") ? false : true;
-            $primary = ($data['uniquerule'] == "P");
-
-            $indexName = strtolower($data['name']);
-            if ($primary) {
-                $keyName = 'primary';
-            } else {
-                $keyName = $indexName;
-            }
-
-            $data = array(
-                'name' => $indexName,
-                'columns' => explode("+", ltrim($data['colnames'], '+')),
-                'unique' => $unique,
-                'primary' => $primary
-            );
-
-            $index = null;
-            $defaultPrevented = false;
-
-            if (null !== $eventManager && $eventManager->hasListeners(Events::onSchemaIndexDefinition)) {
-                $eventArgs = new SchemaIndexDefinitionEventArgs($data, $tableName, $this->_conn);
-                $eventManager->dispatchEvent(Events::onSchemaIndexDefinition, $eventArgs);
-
-                $defaultPrevented = $eventArgs->isDefaultPrevented();
-                $index = $eventArgs->getIndex();
-            }
-
-            if ( ! $defaultPrevented) {
-                $index = new Index($data['name'], $data['columns'], $data['unique'], $data['primary']);
-            }
-
-            if ($index) {
-                $indexes[$indexKey] = $index;
-            }
+        foreach ($tableIndexRows as &$tableIndexRow) {
+            $tableIndexRow = array_change_key_case($tableIndexRow, \CASE_LOWER);
+            $tableIndexRow['primary'] = (boolean) $tableIndexRow['primary'];
         }
 
-        return $indexes;
+        return parent::_getPortableTableIndexesList($tableIndexRows, $tableName);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     protected function _getPortableTableForeignKeyDefinition($tableForeignKey)
     {
-        $tableForeignKey = array_change_key_case($tableForeignKey, CASE_LOWER);
-
-        $tableForeignKey['deleterule'] = $this->_getPortableForeignKeyRuleDef($tableForeignKey['deleterule']);
-        $tableForeignKey['updaterule'] = $this->_getPortableForeignKeyRuleDef($tableForeignKey['updaterule']);
-
         return new ForeignKeyConstraint(
-            array_map('trim', (array)$tableForeignKey['fkcolnames']),
-            $tableForeignKey['reftbname'],
-            array_map('trim', (array)$tableForeignKey['pkcolnames']),
-            $tableForeignKey['relname'],
-            array(
-                'onUpdate' => $tableForeignKey['updaterule'],
-                'onDelete' => $tableForeignKey['deleterule'],
-            )
+            $tableForeignKey['local_columns'],
+            $tableForeignKey['foreign_table'],
+            $tableForeignKey['foreign_columns'],
+            $tableForeignKey['name'],
+            $tableForeignKey['options']
         );
     }
 
+    /**
+     * {@inheritdoc}
+     */
+    protected function _getPortableTableForeignKeysList($tableForeignKeys)
+    {
+        $foreignKeys = array();
+
+        foreach ($tableForeignKeys as $tableForeignKey) {
+            $tableForeignKey = array_change_key_case($tableForeignKey, \CASE_LOWER);
+
+            if (!isset($foreignKeys[$tableForeignKey['index_name']])) {
+                $foreignKeys[$tableForeignKey['index_name']] = array(
+                    'local_columns'   => array($tableForeignKey['local_column']),
+                    'foreign_table'   => $tableForeignKey['foreign_table'],
+                    'foreign_columns' => array($tableForeignKey['foreign_column']),
+                    'name'            => $tableForeignKey['index_name'],
+                    'options'         => array(
+                        'onUpdate' => $tableForeignKey['on_update'],
+                        'onDelete' => $tableForeignKey['on_delete'],
+                    )
+                );
+            } else {
+                $foreignKeys[$tableForeignKey['index_name']]['local_columns'][] = $tableForeignKey['local_column'];
+                $foreignKeys[$tableForeignKey['index_name']]['foreign_columns'][] = $tableForeignKey['foreign_column'];
+            }
+        }
+
+        return parent::_getPortableTableForeignKeysList($foreignKeys);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     protected function _getPortableForeignKeyRuleDef($def)
     {
         if ($def == "C") {
             return "CASCADE";
-        } else if ($def == "N") {
+        } elseif ($def == "N") {
             return "SET NULL";
         }
+
         return null;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     protected function _getPortableViewDefinition($view)
     {
         $view = array_change_key_case($view, \CASE_LOWER);

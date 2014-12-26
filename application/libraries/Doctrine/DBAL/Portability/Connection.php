@@ -17,14 +17,17 @@
  * <http://www.doctrine-project.org>.
  */
 
-
 namespace Doctrine\DBAL\Portability;
 
-use Doctrine\Common\EventManager;
-use Doctrine\DBAL\Configuration;
-use Doctrine\DBAL\Driver;
 use Doctrine\DBAL\Cache\QueryCacheProfile;
 
+/**
+ * Portability wrapper for a Connection.
+ *
+ * @link   www.doctrine-project.org
+ * @since  2.0
+ * @author Benjamin Eberlei <kontakt@beberlei.de>
+ */
 class Connection extends \Doctrine\DBAL\Connection
 {
     const PORTABILITY_ALL               = 255;
@@ -33,39 +36,48 @@ class Connection extends \Doctrine\DBAL\Connection
     const PORTABILITY_EMPTY_TO_NULL     = 4;
     const PORTABILITY_FIX_CASE          = 8;
 
+    const PORTABILITY_DB2               = 13;
     const PORTABILITY_ORACLE            = 9;
     const PORTABILITY_POSTGRESQL        = 13;
     const PORTABILITY_SQLITE            = 13;
     const PORTABILITY_OTHERVENDORS      = 12;
     const PORTABILITY_DRIZZLE           = 13;
+    const PORTABILITY_SQLANYWHERE       = 13;
     const PORTABILITY_SQLSRV            = 13;
 
     /**
-     * @var int
+     * @var integer
      */
     private $portability = self::PORTABILITY_NONE;
 
     /**
-     * @var int
+     * @var integer
      */
     private $case;
 
+    /**
+     * {@inheritdoc}
+     */
     public function connect()
     {
         $ret = parent::connect();
         if ($ret) {
             $params = $this->getParams();
             if (isset($params['portability'])) {
-                if ($this->_platform->getName() === "oracle") {
+                if ($this->getDatabasePlatform()->getName() === "oracle") {
                     $params['portability'] = $params['portability'] & self::PORTABILITY_ORACLE;
-                } else if ($this->_platform->getName() === "postgresql") {
+                } elseif ($this->getDatabasePlatform()->getName() === "postgresql") {
                     $params['portability'] = $params['portability'] & self::PORTABILITY_POSTGRESQL;
-                } else if ($this->_platform->getName() === "sqlite") {
+                } elseif ($this->getDatabasePlatform()->getName() === "sqlite") {
                     $params['portability'] = $params['portability'] & self::PORTABILITY_SQLITE;
-                } else if ($this->_platform->getName() === "drizzle") {
+                } elseif ($this->getDatabasePlatform()->getName() === "drizzle") {
                     $params['portability'] = self::PORTABILITY_DRIZZLE;
-                } else if ($this->_platform->getName() === 'sqlsrv') {
-                    $params['portability'] = $params['portabililty'] & self::PORTABILITY_SQLSRV;
+                } elseif ($this->getDatabasePlatform()->getName() === 'sqlanywhere') {
+                    $params['portability'] = self::PORTABILITY_SQLANYWHERE;
+                } elseif ($this->getDatabasePlatform()->getName() === 'db2') {
+                    $params['portability'] = self::PORTABILITY_DB2;
+                } elseif ($this->getDatabasePlatform()->getName() === 'mssql') {
+                    $params['portability'] = $params['portability'] & self::PORTABILITY_SQLSRV;
                 } else {
                     $params['portability'] = $params['portability'] & self::PORTABILITY_OTHERVENDORS;
                 }
@@ -80,40 +92,59 @@ class Connection extends \Doctrine\DBAL\Connection
                 }
             }
         }
+
         return $ret;
     }
 
+    /**
+     * @return integer
+     */
     public function getPortability()
     {
         return $this->portability;
     }
 
+    /**
+     * @return integer
+     */
     public function getFetchCase()
     {
         return $this->case;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function executeQuery($query, array $params = array(), $types = array(), QueryCacheProfile $qcp = null)
     {
-        return new Statement(parent::executeQuery($query, $params, $types, $qcp), $this);
+        $stmt = new Statement(parent::executeQuery($query, $params, $types, $qcp), $this);
+        $stmt->setFetchMode($this->defaultFetchMode);
+
+        return $stmt;
     }
 
     /**
-     * Prepares an SQL statement.
-     *
-     * @param string $statement The SQL statement to prepare.
-     * @return \Doctrine\DBAL\Driver\Statement The prepared statement.
+     * {@inheritdoc}
      */
     public function prepare($statement)
     {
-        return new Statement(parent::prepare($statement), $this);
+        $stmt = new Statement(parent::prepare($statement), $this);
+        $stmt->setFetchMode($this->defaultFetchMode);
+
+        return $stmt;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function query()
     {
         $this->connect();
 
         $stmt = call_user_func_array(array($this->_conn, 'query'), func_get_args());
-        return new Statement($stmt, $this);
+        $stmt = new Statement($stmt, $this);
+        $stmt->setFetchMode($this->defaultFetchMode);
+
+        return $stmt;
     }
 }

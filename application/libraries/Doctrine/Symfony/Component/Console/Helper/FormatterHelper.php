@@ -11,6 +11,8 @@
 
 namespace Symfony\Component\Console\Helper;
 
+use Symfony\Component\Console\Formatter\OutputFormatter;
+
 /**
  * The Formatter class provides helpers to format messages.
  *
@@ -37,7 +39,7 @@ class FormatterHelper extends Helper
      *
      * @param string|array $messages The message to write in the block
      * @param string       $style    The style to apply to the whole block
-     * @param Boolean      $large    Whether to return a large block
+     * @param bool         $large    Whether to return a large block
      *
      * @return string The formatter message
      */
@@ -48,6 +50,7 @@ class FormatterHelper extends Helper
         $len = 0;
         $lines = array();
         foreach ($messages as $message) {
+            $message = OutputFormatter::escape($message);
             $lines[] = sprintf($large ? '  %s  ' : ' %s ', $message);
             $len = max($this->strlen($message) + ($large ? 4 : 2), $len);
         }
@@ -68,29 +71,7 @@ class FormatterHelper extends Helper
     }
 
     /**
-     * Returns the length of a string, using mb_strlen if it is available.
-     *
-     * @param string $string The string to check its length
-     *
-     * @return integer The length of the string
-     */
-    private function strlen($string)
-    {
-        if (!function_exists('mb_strlen')) {
-            return strlen($string);
-        }
-
-        if (false === $encoding = mb_detect_encoding($string)) {
-            return strlen($string);
-        }
-
-        return mb_strlen($string, $encoding);
-    }
-
-    /**
-     * Returns the helper's canonical name.
-     *
-     * @return string The canonical name of the helper
+     * {@inheritdoc}
      */
     public function getName()
     {

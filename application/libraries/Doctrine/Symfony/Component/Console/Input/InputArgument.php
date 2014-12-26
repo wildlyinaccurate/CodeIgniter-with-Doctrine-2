@@ -32,10 +32,10 @@ class InputArgument
     /**
      * Constructor.
      *
-     * @param string  $name        The argument name
-     * @param integer $mode        The argument mode: self::REQUIRED or self::OPTIONAL
-     * @param string  $description A description text
-     * @param mixed   $default     The default value (for self::OPTIONAL mode only)
+     * @param string $name        The argument name
+     * @param int    $mode        The argument mode: self::REQUIRED or self::OPTIONAL
+     * @param string $description A description text
+     * @param mixed  $default     The default value (for self::OPTIONAL mode only)
      *
      * @throws \InvalidArgumentException When argument mode is not valid
      *
@@ -49,8 +49,8 @@ class InputArgument
             throw new \InvalidArgumentException(sprintf('Argument mode "%s" is not valid.', $mode));
         }
 
-        $this->name        = $name;
-        $this->mode        = $mode;
+        $this->name = $name;
+        $this->mode = $mode;
         $this->description = $description;
 
         $this->setDefault($default);
@@ -69,7 +69,7 @@ class InputArgument
     /**
      * Returns true if the argument is required.
      *
-     * @return Boolean true if parameter mode is self::REQUIRED, false otherwise
+     * @return bool true if parameter mode is self::REQUIRED, false otherwise
      */
     public function isRequired()
     {
@@ -79,7 +79,7 @@ class InputArgument
     /**
      * Returns true if the argument can take multiple values.
      *
-     * @return Boolean true if mode is self::IS_ARRAY, false otherwise
+     * @return bool true if mode is self::IS_ARRAY, false otherwise
      */
     public function isArray()
     {
@@ -96,7 +96,7 @@ class InputArgument
     public function setDefault($default = null)
     {
         if (self::REQUIRED === $this->mode && null !== $default) {
-            throw new \LogicException('Cannot set a default value except for Parameter::OPTIONAL mode.');
+            throw new \LogicException('Cannot set a default value except for InputArgument::OPTIONAL mode.');
         }
 
         if ($this->isArray()) {

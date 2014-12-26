@@ -19,19 +19,42 @@
 
 namespace Doctrine\ORM;
 
-use Exception,
-    Doctrine\Common\EventManager,
-    Doctrine\Common\Persistence\ObjectManager,
-    Doctrine\DBAL\Connection,
-    Doctrine\DBAL\LockMode,
-    Doctrine\ORM\Mapping\ClassMetadata,
-    Doctrine\ORM\Mapping\ClassMetadataFactory,
-    Doctrine\ORM\Query\ResultSetMapping,
-    Doctrine\ORM\Proxy\ProxyFactory,
-    Doctrine\ORM\Query\FilterCollection;
+use Exception;
+use Doctrine\Common\EventManager;
+use Doctrine\Common\Persistence\ObjectManager;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\LockMode;
+use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\ORM\Mapping\ClassMetadataFactory;
+use Doctrine\ORM\Query\ResultSetMapping;
+use Doctrine\ORM\Proxy\ProxyFactory;
+use Doctrine\ORM\Query\FilterCollection;
+use Doctrine\Common\Util\ClassUtils;
 
 /**
  * The EntityManager is the central access point to ORM functionality.
+ *
+ * It is a facade to all different ORM subsystems such as UnitOfWork,
+ * Query Language and Repository API. Instantiation is done through
+ * the static create() method. The quickest way to obtain a fully
+ * configured EntityManager is:
+ *
+ *     use Doctrine\ORM\Tools\Setup;
+ *     use Doctrine\ORM\EntityManager;
+ *
+ *     $paths = array('/path/to/entity/mapping/files');
+ *
+ *     $config = Setup::createAnnotationMetadataConfiguration($paths);
+ *     $dbParams = array('driver' => 'pdo_sqlite', 'memory' => true);
+ *     $entityManager = EntityManager::create($dbParams, $config);
+ *
+ * For more information see
+ * {@link http://docs.doctrine-project.org/projects/doctrine-orm/en/latest/reference/configuration.html}
+ *
+ * You should never attempt to inherit from the EntityManager: Inheritance
+ * is not a valid extension point for the EntityManager. Instead you
+ * should take a look at the {@see \Doctrine\ORM\Decorator\EntityManagerDecorator}
+ * and wrap your entity manager in a decorator.
  *
  * @since   2.0
  * @author  Benjamin Eberlei <kontakt@beberlei.de>
@@ -39,7 +62,7 @@ use Exception,
  * @author  Jonathan Wage <jonwage@gmail.com>
  * @author  Roman Borschel <roman@code-factory.org>
  */
-class EntityManager implements ObjectManager
+/* final */class EntityManager implements EntityManagerInterface
 {
     /**
      * The used Configuration.
@@ -63,13 +86,6 @@ class EntityManager implements ObjectManager
     private $metadataFactory;
 
     /**
-     * The EntityRepository instances.
-     *
-     * @var array
-     */
-    private $repositories = array();
-
-    /**
      * The UnitOfWork used to coordinate object-level transactions.
      *
      * @var \Doctrine\ORM\UnitOfWork
@@ -84,18 +100,18 @@ class EntityManager implements ObjectManager
     private $eventManager;
 
     /**
-     * The maintained (cached) hydrators. One instance per type.
-     *
-     * @var array
-     */
-    private $hydrators = array();
-
-    /**
      * The proxy factory used to create dynamic proxies.
      *
      * @var \Doctrine\ORM\Proxy\ProxyFactory
      */
     private $proxyFactory;
+
+    /**
+     * The repository factory used to create dynamic repositories.
+     *
+     * @var \Doctrine\ORM\Repository\RepositoryFactory
+     */
+    private $repositoryFactory;
 
     /**
      * The expression builder instance used to generate query expressions.
@@ -114,7 +130,7 @@ class EntityManager implements ObjectManager
     /**
      * Collection of query filters.
      *
-     * @var Doctrine\ORM\Query\FilterCollection
+     * @var \Doctrine\ORM\Query\FilterCollection
      */
     private $filterCollection;
 
@@ -122,15 +138,15 @@ class EntityManager implements ObjectManager
      * Creates a new EntityManager that operates on the given database connection
      * and uses the given Configuration and EventManager implementations.
      *
-     * @param \Doctrine\DBAL\Connection $conn
-     * @param \Doctrine\ORM\Configuration $config
+     * @param \Doctrine\DBAL\Connection     $conn
+     * @param \Doctrine\ORM\Configuration   $config
      * @param \Doctrine\Common\EventManager $eventManager
      */
     protected function __construct(Connection $conn, Configuration $config, EventManager $eventManager)
     {
-        $this->conn         = $conn;
-        $this->config       = $config;
-        $this->eventManager = $eventManager;
+        $this->conn              = $conn;
+        $this->config            = $config;
+        $this->eventManager      = $eventManager;
 
         $metadataFactoryClassName = $config->getClassMetadataFactoryName();
 
@@ -138,8 +154,9 @@ class EntityManager implements ObjectManager
         $this->metadataFactory->setEntityManager($this);
         $this->metadataFactory->setCacheDriver($this->config->getMetadataCacheImpl());
 
-        $this->unitOfWork   = new UnitOfWork($this);
-        $this->proxyFactory = new ProxyFactory(
+        $this->repositoryFactory = $config->getRepositoryFactory();
+        $this->unitOfWork        = new UnitOfWork($this);
+        $this->proxyFactory      = new ProxyFactory(
             $this,
             $config->getProxyDir(),
             $config->getProxyNamespace(),
@@ -148,9 +165,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets the database connection object used by the EntityManager.
-     *
-     * @return \Doctrine\DBAL\Connection
+     * {@inheritDoc}
      */
     public function getConnection()
     {
@@ -168,18 +183,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets an ExpressionBuilder used for object-oriented construction of query expressions.
-     *
-     * Example:
-     *
-     * <code>
-     *     $qb = $em->createQueryBuilder();
-     *     $expr = $em->getExpressionBuilder();
-     *     $qb->select('u')->from('User', 'u')
-     *         ->where($expr->orX($expr->eq('u.id', 1), $expr->eq('u.id', 2)));
-     * </code>
-     *
-     * @return \Doctrine\ORM\Query\Expr
+     * {@inheritDoc}
      */
     public function getExpressionBuilder()
     {
@@ -191,7 +195,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Starts a transaction on the underlying database connection.
+     * {@inheritDoc}
      */
     public function beginTransaction()
     {
@@ -199,17 +203,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Executes a function in a transaction.
-     *
-     * The function gets passed this EntityManager instance as an (optional) parameter.
-     *
-     * {@link flush} is invoked prior to transaction commit.
-     *
-     * If an exception occurs during execution of the function or flushing or transaction commit,
-     * the transaction is rolled back, the EntityManager closed and the exception re-thrown.
-     *
-     * @param callable $func The function to execute transactionally.
-     * @return mixed Returns the non-empty value returned from the closure or true instead
+     * {@inheritDoc}
      */
     public function transactional($func)
     {
@@ -235,7 +229,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Commits a transaction on the underlying database connection.
+     * {@inheritDoc}
      */
     public function commit()
     {
@@ -243,7 +237,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Performs a rollback on the underlying database connection.
+     * {@inheritDoc}
      */
     public function rollback()
     {
@@ -260,7 +254,10 @@ class EntityManager implements ObjectManager
      * MyProject\Domain\User
      * sales:PriceRequest
      *
+     * @param string $className
+     *
      * @return \Doctrine\ORM\Mapping\ClassMetadata
+     *
      * @internal Performance-sensitive method.
      */
     public function getClassMetadata($className)
@@ -269,12 +266,9 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Creates a new Query object.
-     *
-     * @param string $dql The DQL string.
-     * @return \Doctrine\ORM\Query
+     * {@inheritDoc}
      */
-    public function createQuery($dql = "")
+    public function createQuery($dql = '')
     {
         $query = new Query($this);
 
@@ -286,10 +280,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Creates a Query from a named query.
-     *
-     * @param string $name
-     * @return \Doctrine\ORM\Query
+     * {@inheritDoc}
      */
     public function createNamedQuery($name)
     {
@@ -297,11 +288,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Creates a native SQL query.
-     *
-     * @param string $sql
-     * @param ResultSetMapping $rsm The ResultSetMapping to use.
-     * @return NativeQuery
+     * {@inheritDoc}
      */
     public function createNativeQuery($sql, ResultSetMapping $rsm)
     {
@@ -314,10 +301,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Creates a NativeQuery from a named native query.
-     *
-     * @param string $name
-     * @return \Doctrine\ORM\NativeQuery
+     * {@inheritDoc}
      */
     public function createNamedNativeQuery($name)
     {
@@ -327,9 +311,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Create a QueryBuilder instance
-     *
-     * @return QueryBuilder $qb
+     * {@inheritDoc}
      */
     public function createQueryBuilder()
     {
@@ -344,7 +326,10 @@ class EntityManager implements ObjectManager
      * If an entity is explicitly passed to this method only this entity and
      * the cascade-persist semantics + scheduled inserts/removals are synchronized.
      *
-     * @param object $entity
+     * @param null|object|array $entity
+     *
+     * @return void
+     *
      * @throws \Doctrine\ORM\OptimisticLockException If a version check on an entity that
      *         makes use of optimistic locking fails.
      */
@@ -354,20 +339,33 @@ class EntityManager implements ObjectManager
 
         $this->unitOfWork->commit($entity);
     }
-    
+
     /**
      * Finds an Entity by its identifier.
      *
-     * @param string $entityName
-     * @param mixed $id
-     * @param integer $lockMode
-     * @param integer $lockVersion
+     * @param string       $entityName
+     * @param mixed        $id
+     * @param integer      $lockMode
+     * @param integer|null $lockVersion
      *
-     * @return object
+     * @return object|null The entity instance or NULL if the entity can not be found.
+     *
+     * @throws OptimisticLockException
+     * @throws ORMInvalidArgumentException
+     * @throws TransactionRequiredException
+     * @throws ORMException
      */
     public function find($entityName, $id, $lockMode = LockMode::NONE, $lockVersion = null)
     {
         $class = $this->metadataFactory->getMetadataFor(ltrim($entityName, '\\'));
+
+        if (is_object($id) && $this->metadataFactory->hasMetadataFor(ClassUtils::getClass($id))) {
+            $id = $this->unitOfWork->getSingleIdentifierValue($id);
+
+            if ($id === null) {
+                throw ORMInvalidArgumentException::invalidIdentifierBindingEntity();
+            }
+        }
 
         if ( ! is_array($id)) {
             $id = array($class->identifier[0] => $id);
@@ -433,12 +431,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets a reference to the entity identified by the given type and identifier
-     * without actually loading it, if the entity is not yet loaded.
-     *
-     * @param string $entityName The name of the entity type.
-     * @param mixed $id The entity identifier.
-     * @return object The entity reference.
+     * {@inheritDoc}
      */
     public function getReference($entityName, $id)
     {
@@ -479,23 +472,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets a partial reference to the entity identified by the given type and identifier
-     * without actually loading it, if the entity is not yet loaded.
-     *
-     * The returned reference may be a partial object if the entity is not yet loaded/managed.
-     * If it is a partial object it will not initialize the rest of the entity state on access.
-     * Thus you can only ever safely access the identifier of an entity obtained through
-     * this method.
-     *
-     * The use-cases for partial references involve maintaining bidirectional associations
-     * without loading one side of the association or to update an entity without loading it.
-     * Note, however, that in the latter case the original (persistent) entity data will
-     * never be visible to the application (especially not event listeners) as it will
-     * never be loaded in the first place.
-     *
-     * @param string $entityName The name of the entity type.
-     * @param mixed $identifier The entity identifier.
-     * @return object The (partial) entity reference.
+     * {@inheritDoc}
      */
     public function getPartialReference($entityName, $identifier)
     {
@@ -524,7 +501,9 @@ class EntityManager implements ObjectManager
      * Clears the EntityManager. All entities that are currently managed
      * by this EntityManager become detached.
      *
-     * @param string $entityName if given, only entities of this type will get detached
+     * @param string|null $entityName if given, only entities of this type will get detached
+     *
+     * @return void
      */
     public function clear($entityName = null)
     {
@@ -532,9 +511,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Closes the EntityManager. All entities that are currently managed
-     * by this EntityManager become detached. The EntityManager may no longer
-     * be used after it is closed.
+     * {@inheritDoc}
      */
     public function close()
     {
@@ -552,7 +529,11 @@ class EntityManager implements ObjectManager
      * NOTE: The persist operation always considers entities that are not yet known to
      * this EntityManager as NEW. Do not pass detached entities to the persist operation.
      *
-     * @param object $object The instance to make managed and persistent.
+     * @param object $entity The instance to make managed and persistent.
+     *
+     * @return void
+     *
+     * @throws ORMInvalidArgumentException
      */
     public function persist($entity)
     {
@@ -572,6 +553,10 @@ class EntityManager implements ObjectManager
      * or as a result of the flush operation.
      *
      * @param object $entity The entity instance to remove.
+     *
+     * @return void
+     *
+     * @throws ORMInvalidArgumentException
      */
     public function remove($entity)
     {
@@ -589,6 +574,10 @@ class EntityManager implements ObjectManager
      * overriding any local changes that have not yet been persisted.
      *
      * @param object $entity The entity to refresh.
+     *
+     * @return void
+     *
+     * @throws ORMInvalidArgumentException
      */
     public function refresh($entity)
     {
@@ -609,6 +598,10 @@ class EntityManager implements ObjectManager
      * reference it.
      *
      * @param object $entity The entity to detach.
+     *
+     * @return void
+     *
+     * @throws ORMInvalidArgumentException
      */
     public function detach($entity)
     {
@@ -625,7 +618,10 @@ class EntityManager implements ObjectManager
      * The entity passed to merge will not become associated/managed with this EntityManager.
      *
      * @param object $entity The detached entity to merge into the persistence context.
+     *
      * @return object The managed copy of the entity.
+     *
+     * @throws ORMInvalidArgumentException
      */
     public function merge($entity)
     {
@@ -639,10 +635,8 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Creates a copy of the given entity. Can create a shallow or a deep copy.
+     * {@inheritDoc}
      *
-     * @param object $entity  The entity to copy.
-     * @return object  The new entity.
      * @todo Implementation need. This is necessary since $e2 = clone $e1; throws an E_FATAL when access anything on $e:
      * Fatal error: Maximum function nesting level of '100' reached, aborting!
      */
@@ -652,13 +646,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Acquire a lock on the given entity.
-     *
-     * @param object $entity
-     * @param int $lockMode
-     * @param int $lockVersion
-     * @throws OptimisticLockException
-     * @throws PessimisticLockException
+     * {@inheritDoc}
      */
     public function lock($entity, $lockMode, $lockVersion = null)
     {
@@ -669,34 +657,19 @@ class EntityManager implements ObjectManager
      * Gets the repository for an entity class.
      *
      * @param string $entityName The name of the entity.
-     * @return EntityRepository The repository class.
+     *
+     * @return \Doctrine\ORM\EntityRepository The repository class.
      */
     public function getRepository($entityName)
     {
-        $entityName = ltrim($entityName, '\\');
-
-        if (isset($this->repositories[$entityName])) {
-            return $this->repositories[$entityName];
-        }
-
-        $metadata = $this->getClassMetadata($entityName);
-        $repositoryClassName = $metadata->customRepositoryClassName;
-
-        if ($repositoryClassName === null) {
-            $repositoryClassName = $this->config->getDefaultRepositoryClassName();
-        }
-
-        $repository = new $repositoryClassName($this, $metadata);
-
-        $this->repositories[$entityName] = $repository;
-
-        return $repository;
+        return $this->repositoryFactory->getRepository($this, $entityName);
     }
 
     /**
      * Determines whether an entity instance is managed in this EntityManager.
      *
      * @param object $entity
+     *
      * @return boolean TRUE if this EntityManager currently manages the given entity, FALSE otherwise.
      */
     public function contains($entity)
@@ -707,9 +680,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets the EventManager used by the EntityManager.
-     *
-     * @return \Doctrine\Common\EventManager
+     * {@inheritDoc}
      */
     public function getEventManager()
     {
@@ -717,9 +688,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets the Configuration used by the EntityManager.
-     *
-     * @return \Doctrine\ORM\Configuration
+     * {@inheritDoc}
      */
     public function getConfiguration()
     {
@@ -728,6 +697,8 @@ class EntityManager implements ObjectManager
 
     /**
      * Throws an exception if the EntityManager is closed or currently not active.
+     *
+     * @return void
      *
      * @throws ORMException If the EntityManager is closed.
      */
@@ -739,9 +710,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Check if the Entity manager is open or closed.
-     *
-     * @return bool
+     * {@inheritDoc}
      */
     public function isOpen()
     {
@@ -749,9 +718,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets the UnitOfWork used by the EntityManager to coordinate operations.
-     *
-     * @return \Doctrine\ORM\UnitOfWork
+     * {@inheritDoc}
      */
     public function getUnitOfWork()
     {
@@ -759,28 +726,15 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets a hydrator for the given hydration mode.
-     *
-     * This method caches the hydrator instances which is used for all queries that don't
-     * selectively iterate over the result.
-     *
-     * @param int $hydrationMode
-     * @return \Doctrine\ORM\Internal\Hydration\AbstractHydrator
+     * {@inheritDoc}
      */
     public function getHydrator($hydrationMode)
     {
-        if ( ! isset($this->hydrators[$hydrationMode])) {
-            $this->hydrators[$hydrationMode] = $this->newHydrator($hydrationMode);
-        }
-
-        return $this->hydrators[$hydrationMode];
+        return $this->newHydrator($hydrationMode);
     }
 
     /**
-     * Create a new instance for the given hydration mode.
-     *
-     * @param  int $hydrationMode
-     * @return \Doctrine\ORM\Internal\Hydration\AbstractHydrator
+     * {@inheritDoc}
      */
     public function newHydrator($hydrationMode)
     {
@@ -810,9 +764,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets the proxy factory used by the EntityManager to create entity proxies.
-     *
-     * @return ProxyFactory
+     * {@inheritDoc}
      */
     public function getProxyFactory()
     {
@@ -820,11 +772,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Helper method to initialize a lazy loading proxy or persistent collection.
-     *
-     * This method is a no-op for other objects
-     *
-     * @param object $obj
+     * {@inheritDoc}
      */
     public function initializeObject($obj)
     {
@@ -834,11 +782,14 @@ class EntityManager implements ObjectManager
     /**
      * Factory method to create EntityManager instances.
      *
-     * @param mixed $conn An array with the connection parameters or an existing
-     *      Connection instance.
-     * @param Configuration $config The Configuration instance to use.
-     * @param EventManager $eventManager The EventManager instance to use.
+     * @param mixed         $conn         An array with the connection parameters or an existing Connection instance.
+     * @param Configuration $config       The Configuration instance to use.
+     * @param EventManager  $eventManager The EventManager instance to use.
+     *
      * @return EntityManager The created EntityManager.
+     *
+     * @throws \InvalidArgumentException
+     * @throws ORMException
      */
     public static function create($conn, Configuration $config, EventManager $eventManager = null)
     {
@@ -867,9 +818,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Gets the enabled filters.
-     *
-     * @return FilterCollection The active filter collection.
+     * {@inheritDoc}
      */
     public function getFilters()
     {
@@ -881,9 +830,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Checks whether the state of the filter collection is clean.
-     *
-     * @return boolean True, if the filter collection is clean.
+     * {@inheritDoc}
      */
     public function isFiltersStateClean()
     {
@@ -891,9 +838,7 @@ class EntityManager implements ObjectManager
     }
 
     /**
-     * Checks whether the Entity Manager has filters.
-     *
-     * @return True, if the EM has a filter collection.
+     * {@inheritDoc}
      */
     public function hasFilters()
     {

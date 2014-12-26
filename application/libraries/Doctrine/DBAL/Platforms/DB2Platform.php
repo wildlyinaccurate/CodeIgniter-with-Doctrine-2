@@ -15,22 +15,42 @@
  * This software consists of voluntary contributions made by many individuals
  * and is licensed under the MIT license. For more information, see
  * <http://www.doctrine-project.org>.
-*/
+ */
 
 namespace Doctrine\DBAL\Platforms;
 
-use Doctrine\DBAL\DBALException;
+use Doctrine\DBAL\Schema\Column;
+use Doctrine\DBAL\Schema\ColumnDiff;
+use Doctrine\DBAL\Schema\Identifier;
 use Doctrine\DBAL\Schema\Index;
+use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Schema\TableDiff;
 
 class DB2Platform extends AbstractPlatform
 {
     /**
+     * {@inheritdoc}
+     */
+    public function getBinaryMaxLength()
+    {
+        return 32704;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getBinaryDefaultLength()
+    {
+        return 1;
+    }
+
+    /**
      * {@inheritDoc}
      */
     public function getBlobTypeDeclarationSQL(array $field)
     {
-        throw DBALException::notSupported(__METHOD__);
+        // todo blob(n) with $field['length'];
+        return 'BLOB(1M)';
     }
 
     /**
@@ -46,7 +66,10 @@ class DB2Platform extends AbstractPlatform
             'date'          => 'date',
             'varchar'       => 'string',
             'character'     => 'string',
+            'varbinary'     => 'binary',
+            'binary'        => 'binary',
             'clob'          => 'text',
+            'blob'          => 'blob',
             'decimal'       => 'decimal',
             'double'        => 'float',
             'real'          => 'float',
@@ -61,6 +84,14 @@ class DB2Platform extends AbstractPlatform
     {
         return $fixed ? ($length ? 'CHAR(' . $length . ')' : 'CHAR(255)')
                 : ($length ? 'VARCHAR(' . $length . ')' : 'VARCHAR(255)');
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getBinaryTypeDeclarationSQLSnippet($length, $fixed)
+    {
+        return $fixed ? 'BINARY(' . ($length ?: 255) . ')' : 'VARBINARY(' . ($length ?: 255) . ')';
     }
 
     /**
@@ -126,6 +157,50 @@ class DB2Platform extends AbstractPlatform
     }
 
     /**
+     * {@inheritdoc}
+     */
+    public function getBitAndComparisonExpression($value1, $value2)
+    {
+        return 'BITAND(' . $value1 . ', ' . $value2 . ')';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getBitOrComparisonExpression($value1, $value2)
+    {
+        return 'BITOR(' . $value1 . ', ' . $value2 . ')';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getDateArithmeticIntervalExpression($date, $operator, $interval, $unit)
+    {
+        switch ($unit) {
+            case self::DATE_INTERVAL_UNIT_WEEK:
+                $interval *= 7;
+                $unit = self::DATE_INTERVAL_UNIT_DAY;
+                break;
+
+            case self::DATE_INTERVAL_UNIT_QUARTER:
+                $interval *= 3;
+                $unit = self::DATE_INTERVAL_UNIT_MONTH;
+                break;
+        }
+
+        return $date . ' ' . $operator . ' ' . $interval . ' ' . $unit;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getDateDiffExpression($date1, $date2)
+    {
+        return 'DAYS(' . $date1 . ') - DAYS(' . $date2 . ')';
+    }
+
+    /**
      * {@inheritDoc}
      */
     public function getDateTimeTypeDeclarationSQL(array $fieldDeclaration)
@@ -153,53 +228,75 @@ class DB2Platform extends AbstractPlatform
         return 'TIME';
     }
 
-    public function getListDatabasesSQL()
+    /**
+     * {@inheritdoc}
+     */
+    public function getTruncateTableSQL($tableName, $cascade = false)
     {
-        throw DBALException::notSupported(__METHOD__);
-    }
-
-    public function getListSequencesSQL($database)
-    {
-        throw DBALException::notSupported(__METHOD__);
-    }
-
-    public function getListTableConstraintsSQL($table)
-    {
-        throw DBALException::notSupported(__METHOD__);
+        return 'TRUNCATE ' . $tableName . ' IMMEDIATE';
     }
 
     /**
-     * This code fragment is originally from the Zend_Db_Adapter_Db2 class.
+     * This code fragment is originally from the Zend_Db_Adapter_Db2 class, but has been edited.
      *
      * @license New BSD License
-     * @param  string $table
+     *
+     * @param string $table
      * @param string $database
+     *
      * @return string
      */
     public function getListTableColumnsSQL($table, $database = null)
     {
-        return "SELECT DISTINCT c.tabschema, c.tabname, c.colname, c.colno,
-                c.typename, c.default, c.nulls, c.length, c.scale,
-                c.identity, tc.type AS tabconsttype, k.colseq
-                FROM syscat.columns c
-                LEFT JOIN (syscat.keycoluse k JOIN syscat.tabconst tc
-                ON (k.tabschema = tc.tabschema
-                    AND k.tabname = tc.tabname
-                    AND tc.type = 'P'))
-                ON (c.tabschema = k.tabschema
-                    AND c.tabname = k.tabname
-                    AND c.colname = k.colname)
-                WHERE UPPER(c.tabname) = UPPER('" . $table . "') ORDER BY c.colno";
+        // We do the funky subquery and join syscat.columns.default this crazy way because
+        // as of db2 v10, the column is CLOB(64k) and the distinct operator won't allow a CLOB,
+        // it wants shorter stuff like a varchar.
+        return "
+        SELECT
+          cols.default,
+          subq.*
+        FROM (
+               SELECT DISTINCT
+                 c.tabschema,
+                 c.tabname,
+                 c.colname,
+                 c.colno,
+                 c.typename,
+                 c.nulls,
+                 c.length,
+                 c.scale,
+                 c.identity,
+                 tc.type AS tabconsttype,
+                 k.colseq,
+                 CASE
+                 WHEN c.generated = 'D' THEN 1
+                 ELSE 0
+                 END     AS autoincrement
+               FROM syscat.columns c
+                 LEFT JOIN (syscat.keycoluse k JOIN syscat.tabconst tc
+                     ON (k.tabschema = tc.tabschema
+                         AND k.tabname = tc.tabname
+                         AND tc.type = 'P'))
+                   ON (c.tabschema = k.tabschema
+                       AND c.tabname = k.tabname
+                       AND c.colname = k.colname)
+               WHERE UPPER(c.tabname) = UPPER('" . $table . "')
+               ORDER BY c.colno
+             ) subq
+          JOIN syscat.columns cols
+            ON subq.tabschema = cols.tabschema
+               AND subq.tabname = cols.tabname
+               AND subq.colno = cols.colno
+        ORDER BY subq.colno
+        ";
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getListTablesSQL()
     {
         return "SELECT NAME FROM SYSIBM.SYSTABLES WHERE TYPE = 'T'";
-    }
-
-    public function getListUsersSQL()
-    {
-        throw DBALException::notSupported(__METHOD__);
     }
 
     /**
@@ -215,36 +312,69 @@ class DB2Platform extends AbstractPlatform
      */
     public function getListTableIndexesSQL($table, $currentDatabase = null)
     {
-        return "SELECT NAME, COLNAMES, UNIQUERULE FROM SYSIBM.SYSINDEXES WHERE TBNAME = UPPER('" . $table . "')";
-    }
-
-    public function getListTableForeignKeysSQL($table)
-    {
-        return "SELECT TBNAME, RELNAME, REFTBNAME, DELETERULE, UPDATERULE, FKCOLNAMES, PKCOLNAMES ".
-               "FROM SYSIBM.SYSRELS WHERE TBNAME = UPPER('".$table."')";
-    }
-
-    public function getCreateViewSQL($name, $sql)
-    {
-        return "CREATE VIEW ".$name." AS ".$sql;
-    }
-
-    public function getDropViewSQL($name)
-    {
-        return "DROP VIEW ".$name;
+        return "SELECT   idx.INDNAME AS key_name,
+                         idxcol.COLNAME AS column_name,
+                         CASE
+                             WHEN idx.UNIQUERULE = 'P' THEN 1
+                             ELSE 0
+                         END AS primary,
+                         CASE
+                             WHEN idx.UNIQUERULE = 'D' THEN 1
+                             ELSE 0
+                         END AS non_unique
+                FROM     SYSCAT.INDEXES AS idx
+                JOIN     SYSCAT.INDEXCOLUSE AS idxcol
+                ON       idx.INDSCHEMA = idxcol.INDSCHEMA AND idx.INDNAME = idxcol.INDNAME
+                WHERE    idx.TABNAME = UPPER('" . $table . "')
+                ORDER BY idxcol.COLSEQ ASC";
     }
 
     /**
      * {@inheritDoc}
      */
-    public function getDropSequenceSQL($sequence)
+    public function getListTableForeignKeysSQL($table)
     {
-        throw DBALException::notSupported(__METHOD__);
+        return "SELECT   fkcol.COLNAME AS local_column,
+                         fk.REFTABNAME AS foreign_table,
+                         pkcol.COLNAME AS foreign_column,
+                         fk.CONSTNAME AS index_name,
+                         CASE
+                             WHEN fk.UPDATERULE = 'R' THEN 'RESTRICT'
+                             ELSE NULL
+                         END AS on_update,
+                         CASE
+                             WHEN fk.DELETERULE = 'C' THEN 'CASCADE'
+                             WHEN fk.DELETERULE = 'N' THEN 'SET NULL'
+                             WHEN fk.DELETERULE = 'R' THEN 'RESTRICT'
+                             ELSE NULL
+                         END AS on_delete
+                FROM     SYSCAT.REFERENCES AS fk
+                JOIN     SYSCAT.KEYCOLUSE AS fkcol
+                ON       fk.CONSTNAME = fkcol.CONSTNAME
+                AND      fk.TABSCHEMA = fkcol.TABSCHEMA
+                AND      fk.TABNAME = fkcol.TABNAME
+                JOIN     SYSCAT.KEYCOLUSE AS pkcol
+                ON       fk.REFKEYNAME = pkcol.CONSTNAME
+                AND      fk.REFTABSCHEMA = pkcol.TABSCHEMA
+                AND      fk.REFTABNAME = pkcol.TABNAME
+                WHERE    fk.TABNAME = UPPER('" . $table . "')
+                ORDER BY fkcol.COLSEQ ASC";
     }
 
-    public function getSequenceNextValSQL($sequenceName)
+    /**
+     * {@inheritDoc}
+     */
+    public function getCreateViewSQL($name, $sql)
     {
-        throw DBALException::notSupported(__METHOD__);
+        return "CREATE VIEW ".$name." AS ".$sql;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getDropViewSQL($name)
+    {
+        return "DROP VIEW ".$name;
     }
 
     /**
@@ -260,7 +390,7 @@ class DB2Platform extends AbstractPlatform
      */
     public function getDropDatabaseSQL($database)
     {
-        return "DROP DATABASE ".$database.";";
+        return "DROP DATABASE " . $database;
     }
 
     /**
@@ -284,7 +414,7 @@ class DB2Platform extends AbstractPlatform
      */
     public function getCurrentDateSQL()
     {
-        return 'VALUES CURRENT DATE';
+        return 'CURRENT DATE';
     }
 
     /**
@@ -292,7 +422,7 @@ class DB2Platform extends AbstractPlatform
      */
     public function getCurrentTimeSQL()
     {
-        return 'VALUES CURRENT TIME';
+        return 'CURRENT TIME';
     }
 
     /**
@@ -300,7 +430,7 @@ class DB2Platform extends AbstractPlatform
      */
     public function getCurrentTimestampSQL()
     {
-        return "VALUES CURRENT TIMESTAMP";
+        return "CURRENT TIMESTAMP";
     }
 
     /**
@@ -337,6 +467,7 @@ class DB2Platform extends AbstractPlatform
     {
         $sql = array();
         $columnSql = array();
+        $commentsSQL = array();
 
         $queryParts = array();
         foreach ($diff->addedColumns as $column) {
@@ -344,7 +475,28 @@ class DB2Platform extends AbstractPlatform
                 continue;
             }
 
-            $queryParts[] = 'ADD COLUMN ' . $this->getColumnDeclarationSQL($column->getQuotedName($this), $column->toArray());
+            $columnDef = $column->toArray();
+            $queryPart = 'ADD COLUMN ' . $this->getColumnDeclarationSQL($column->getQuotedName($this), $columnDef);
+
+            // Adding non-nullable columns to a table requires a default value to be specified.
+            if ( ! empty($columnDef['notnull']) &&
+                ! isset($columnDef['default']) &&
+                empty($columnDef['autoincrement'])
+            ) {
+                $queryPart .= ' WITH DEFAULT';
+            }
+
+            $queryParts[] = $queryPart;
+
+            $comment = $this->getColumnComment($column);
+
+            if (null !== $comment && '' !== $comment) {
+                $commentsSQL[] = $this->getCommentOnColumnSQL(
+                    $diff->getName($this)->getQuotedName($this),
+                    $column->getQuotedName($this),
+                    $comment
+                );
+            }
         }
 
         foreach ($diff->removedColumns as $column) {
@@ -360,10 +512,19 @@ class DB2Platform extends AbstractPlatform
                 continue;
             }
 
-            /* @var $columnDiff \Doctrine\DBAL\Schema\ColumnDiff */
-            $column = $columnDiff->column;
-            $queryParts[] =  'ALTER ' . ($columnDiff->oldColumnName) . ' '
-                    . $this->getColumnDeclarationSQL($column->getQuotedName($this), $column->toArray());
+            if ($columnDiff->hasChanged('comment')) {
+                $commentsSQL[] = $this->getCommentOnColumnSQL(
+                    $diff->getName($this)->getQuotedName($this),
+                    $columnDiff->column->getQuotedName($this),
+                    $this->getColumnComment($columnDiff->column)
+                );
+
+                if (count($columnDiff->changedProperties) === 1) {
+                    continue;
+                }
+            }
+
+            $this->gatherAlterColumnSQL($diff->fromTable, $columnDiff, $sql, $queryParts);
         }
 
         foreach ($diff->renamedColumns as $oldColumnName => $column) {
@@ -371,24 +532,163 @@ class DB2Platform extends AbstractPlatform
                 continue;
             }
 
-            $queryParts[] =  'RENAME ' . $oldColumnName . ' TO ' . $column->getQuotedName($this);
+            $oldColumnName = new Identifier($oldColumnName);
+
+            $queryParts[] =  'RENAME COLUMN ' . $oldColumnName->getQuotedName($this) .
+                ' TO ' . $column->getQuotedName($this);
         }
 
         $tableSql = array();
 
         if ( ! $this->onSchemaAlterTable($diff, $tableSql)) {
             if (count($queryParts) > 0) {
-                $sql[] = 'ALTER TABLE ' . $diff->name . ' ' . implode(" ", $queryParts);
+                $sql[] = 'ALTER TABLE ' . $diff->getName($this)->getQuotedName($this) . ' ' . implode(" ", $queryParts);
             }
 
-            $sql = array_merge($sql, $this->_getAlterTableIndexForeignKeySQL($diff));
+            // Some table alteration operations require a table reorganization.
+            if ( ! empty($diff->removedColumns) || ! empty($diff->changedColumns)) {
+                $sql[] = "CALL SYSPROC.ADMIN_CMD ('REORG TABLE " . $diff->getName($this)->getQuotedName($this) . "')";
+            }
+
+            $sql = array_merge($sql, $commentsSQL);
 
             if ($diff->newName !== false) {
-                $sql[] =  'RENAME TABLE TO ' . $diff->newName;
+                $sql[] =  'RENAME TABLE ' . $diff->getName($this)->getQuotedName($this) . ' TO ' . $diff->getNewName()->getQuotedName($this);
             }
+
+            $sql = array_merge(
+                $this->getPreAlterTableIndexForeignKeySQL($diff),
+                $sql,
+                $this->getPostAlterTableIndexForeignKeySQL($diff)
+            );
         }
 
         return array_merge($sql, $tableSql, $columnSql);
+    }
+
+    /**
+     * Gathers the table alteration SQL for a given column diff.
+     *
+     * @param Table      $table      The table to gather the SQL for.
+     * @param ColumnDiff $columnDiff The column diff to evaluate.
+     * @param array      $sql        The sequence of table alteration statements to fill.
+     * @param array      $queryParts The sequence of column alteration clauses to fill.
+     */
+    private function gatherAlterColumnSQL(Table $table, ColumnDiff $columnDiff, array &$sql, array &$queryParts)
+    {
+        $alterColumnClauses = $this->getAlterColumnClausesSQL($columnDiff);
+
+        if (empty($alterColumnClauses)) {
+            return;
+        }
+
+        // If we have a single column alteration, we can append the clause to the main query.
+        if (count($alterColumnClauses) === 1) {
+            $queryParts[] = current($alterColumnClauses);
+
+            return;
+        }
+
+        // We have multiple alterations for the same column,
+        // so we need to trigger a complete ALTER TABLE statement
+        // for each ALTER COLUMN clause.
+        foreach ($alterColumnClauses as $alterColumnClause) {
+            $sql[] = 'ALTER TABLE ' . $table->getQuotedName($this) . ' ' . $alterColumnClause;
+        }
+    }
+
+    /**
+     * Returns the ALTER COLUMN SQL clauses for altering a column described by the given column diff.
+     *
+     * @param ColumnDiff $columnDiff The column diff to evaluate.
+     *
+     * @return array
+     */
+    private function getAlterColumnClausesSQL(ColumnDiff $columnDiff)
+    {
+        $column = $columnDiff->column->toArray();
+
+        $alterClause = 'ALTER COLUMN ' . $columnDiff->column->getQuotedName($this);
+
+        if ($column['columnDefinition']) {
+            return array($alterClause . ' ' . $column['columnDefinition']);
+        }
+
+        $clauses = array();
+
+        if ($columnDiff->hasChanged('type') ||
+            $columnDiff->hasChanged('length') ||
+            $columnDiff->hasChanged('precision') ||
+            $columnDiff->hasChanged('scale') ||
+            $columnDiff->hasChanged('fixed')
+        ) {
+            $clauses[] = $alterClause . ' SET DATA TYPE ' . $column['type']->getSQLDeclaration($column, $this);
+        }
+
+        if ($columnDiff->hasChanged('notnull')) {
+            $clauses[] = $column['notnull'] ? $alterClause . ' SET NOT NULL' : $alterClause . ' DROP NOT NULL';
+        }
+
+        if ($columnDiff->hasChanged('default')) {
+            if (isset($column['default'])) {
+                $defaultClause = $this->getDefaultValueDeclarationSQL($column);
+
+                if ($defaultClause) {
+                    $clauses[] = $alterClause . ' SET' . $defaultClause;
+                }
+            } else {
+                $clauses[] = $alterClause . ' DROP DEFAULT';
+            }
+        }
+
+        return $clauses;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function getPreAlterTableIndexForeignKeySQL(TableDiff $diff)
+    {
+        $sql = array();
+        $table = $diff->getName($this)->getQuotedName($this);
+
+        foreach ($diff->removedIndexes as $remKey => $remIndex) {
+            foreach ($diff->addedIndexes as $addKey => $addIndex) {
+                if ($remIndex->getColumns() == $addIndex->getColumns()) {
+                    if ($remIndex->isPrimary()) {
+                        $sql[] = 'ALTER TABLE ' . $table . ' DROP PRIMARY KEY';
+                    } elseif ($remIndex->isUnique()) {
+                        $sql[] = 'ALTER TABLE ' . $table . ' DROP UNIQUE ' . $remIndex->getQuotedName($this);
+                    } else {
+                        $sql[] = $this->getDropIndexSQL($remIndex, $table);
+                    }
+
+                    $sql[] = $this->getCreateIndexSQL($addIndex, $table);
+
+                    unset($diff->removedIndexes[$remKey]);
+                    unset($diff->addedIndexes[$addKey]);
+
+                    break;
+                }
+            }
+        }
+
+        $sql = array_merge($sql, parent::getPreAlterTableIndexForeignKeySQL($diff));
+
+        return $sql;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getRenameIndexSQL($oldIndexName, Index $index, $tableName)
+    {
+        if (strpos($tableName, '.') !== false) {
+            list($schema) = explode('.', $tableName);
+            $oldIndexName = $schema . '.' . $oldIndexName;
+        }
+
+        return array('RENAME INDEX ' . $oldIndexName . ' TO ' . $index->getQuotedName($this));
     }
 
     /**
@@ -396,21 +696,10 @@ class DB2Platform extends AbstractPlatform
      */
     public function getDefaultValueDeclarationSQL($field)
     {
-        if (isset($field['notnull']) && $field['notnull'] && !isset($field['default'])) {
-            if (in_array((string)$field['type'], array("Integer", "BigInteger", "SmallInteger"))) {
-                $field['default'] = 0;
-            } else if((string)$field['type'] == "DateTime") {
-                $field['default'] = "00-00-00 00:00:00";
-            } else if ((string)$field['type'] == "Date") {
-                $field['default'] = "00-00-00";
-            } else if((string)$field['type'] == "Time") {
-                $field['default'] = "00:00:00";
-            } else {
-                $field['default'] = '';
-            }
+        if ( ! empty($field['autoincrement'])) {
+            return '';
         }
 
-        unset($field['default']); // @todo this needs fixing
         if (isset($field['version']) && $field['version']) {
             if ((string)$field['type'] != "DateTime") {
                 $field['default'] = "1";
@@ -428,6 +717,9 @@ class DB2Platform extends AbstractPlatform
         return 'INSERT INTO ' . $tableName . ' (' . $identifierColumnName . ') VALUES (DEFAULT)';
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getCreateTemporaryTableSnippetSQL()
     {
         return "DECLARE GLOBAL TEMPORARY TABLE";
@@ -510,6 +802,9 @@ class DB2Platform extends AbstractPlatform
         return strtoupper($column);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getForUpdateSQL()
     {
         return ' WITH RR USE AND KEEP UPDATE LOCKS';

@@ -19,25 +19,26 @@
 
 namespace Doctrine\DBAL\Tools\Console\Command;
 
-use Symfony\Component\Console\Input\InputArgument,
-    Symfony\Component\Console;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Task for executing arbitrary SQL that can come from a file or directly from
  * the command line.
  *
- * 
- * @link    www.doctrine-project.org
- * @since   2.0
- * @author  Benjamin Eberlei <kontakt@beberlei.de>
- * @author  Guilherme Blanco <guilhermeblanco@hotmail.com>
- * @author  Jonathan Wage <jonwage@gmail.com>
- * @author  Roman Borschel <roman@code-factory.org>
+ * @link   www.doctrine-project.org
+ * @since  2.0
+ * @author Benjamin Eberlei <kontakt@beberlei.de>
+ * @author Guilherme Blanco <guilhermeblanco@hotmail.com>
+ * @author Jonathan Wage <jonwage@gmail.com>
+ * @author Roman Borschel <roman@code-factory.org>
  */
-class ImportCommand extends Console\Command\Command
+class ImportCommand extends Command
 {
     /**
-     * @see Console\Command\Command
+     * {@inheritdoc}
      */
     protected function configure()
     {
@@ -56,28 +57,33 @@ EOT
     }
 
     /**
-     * @see Console\Command\Command
+     * {@inheritdoc}
      */
-    protected function execute(Console\Input\InputInterface $input, Console\Output\OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output)
     {
         $conn = $this->getHelper('db')->getConnection();
 
         if (($fileNames = $input->getArgument('file')) !== null)  {
             foreach ((array) $fileNames as $fileName) {
-                $fileName = realpath($fileName);
+                $filePath = realpath($fileName);
 
-                if ( ! file_exists($fileName)) {
+                // Phar compatibility.
+                if (false === $filePath) {
+                    $filePath = $fileName;
+                }
+
+                if ( ! file_exists($filePath)) {
                     throw new \InvalidArgumentException(
-                        sprintf("SQL file '<info>%s</info>' does not exist.", $fileName)
+                        sprintf("SQL file '<info>%s</info>' does not exist.", $filePath)
                     );
-                } else if ( ! is_readable($fileName)) {
+                } elseif ( ! is_readable($filePath)) {
                     throw new \InvalidArgumentException(
-                        sprintf("SQL file '<info>%s</info>' does not have read permissions.", $fileName)
+                        sprintf("SQL file '<info>%s</info>' does not have read permissions.", $filePath)
                     );
                 }
 
-                $output->write(sprintf("Processing file '<info>%s</info>'... ", $fileName));
-                $sql = file_get_contents($fileName);
+                $output->write(sprintf("Processing file '<info>%s</info>'... ", $filePath));
+                $sql = file_get_contents($filePath);
 
                 if ($conn instanceof \Doctrine\DBAL\Driver\PDOConnection) {
                     // PDO Drivers

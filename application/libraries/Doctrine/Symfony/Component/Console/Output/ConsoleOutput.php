@@ -11,9 +11,7 @@
 
 namespace Symfony\Component\Console\Output;
 
-use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Formatter\OutputFormatterInterface;
-use Symfony\Component\Console\Output\ConsoleOutputInterface;
 
 /**
  * ConsoleOutput is the default class for all CLI output. It uses STDOUT.
@@ -37,10 +35,9 @@ class ConsoleOutput extends StreamOutput implements ConsoleOutputInterface
     /**
      * Constructor.
      *
-     * @param integer $verbosity The verbosity level (self::VERBOSITY_QUIET, self::VERBOSITY_NORMAL,
-     *                                   self::VERBOSITY_VERBOSE)
-     * @param Boolean         $decorated Whether to decorate messages or not (null for auto-guessing)
-     * @param OutputFormatter $formatter Output formatter instance
+     * @param int                           $verbosity The verbosity level (one of the VERBOSITY constants in OutputInterface)
+     * @param bool|null                     $decorated Whether to decorate messages (null for auto-guessing)
+     * @param OutputFormatterInterface|null $formatter Output formatter instance (null to use default OutputFormatter)
      *
      * @api
      */
@@ -53,21 +50,30 @@ class ConsoleOutput extends StreamOutput implements ConsoleOutputInterface
 
         parent::__construct(fopen($outputStream, 'w'), $verbosity, $decorated, $formatter);
 
-        $this->stderr = new StreamOutput(fopen('php://stderr', 'w'), $verbosity, $decorated, $formatter);
+        $this->stderr = new StreamOutput(fopen('php://stderr', 'w'), $verbosity, $decorated, $this->getFormatter());
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function setDecorated($decorated)
     {
         parent::setDecorated($decorated);
         $this->stderr->setDecorated($decorated);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function setFormatter(OutputFormatterInterface $formatter)
     {
         parent::setFormatter($formatter);
         $this->stderr->setFormatter($formatter);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function setVerbosity($level)
     {
         parent::setVerbosity($level);
@@ -75,13 +81,16 @@ class ConsoleOutput extends StreamOutput implements ConsoleOutputInterface
     }
 
     /**
-     * @return OutputInterface
+     * {@inheritdoc}
      */
     public function getErrorOutput()
     {
         return $this->stderr;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function setErrorOutput(OutputInterface $error)
     {
         $this->stderr = $error;
@@ -95,7 +104,7 @@ class ConsoleOutput extends StreamOutput implements ConsoleOutputInterface
      * STDOUT and doesn't properly convert ASCII to EBCDIC, resulting in garbage
      * output.
      *
-     * @return boolean
+     * @return bool
      */
     protected function hasStdoutSupport()
     {

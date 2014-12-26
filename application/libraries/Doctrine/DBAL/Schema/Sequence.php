@@ -22,68 +22,112 @@ namespace Doctrine\DBAL\Schema;
 use Doctrine\DBAL\Schema\Visitor\Visitor;
 
 /**
- * Sequence Structure
+ * Sequence structure.
  *
- * 
- * @link    www.doctrine-project.org
- * @since   2.0
- * @version $Revision$
- * @author  Benjamin Eberlei <kontakt@beberlei.de>
+ * @link   www.doctrine-project.org
+ * @since  2.0
+ * @author Benjamin Eberlei <kontakt@beberlei.de>
  */
 class Sequence extends AbstractAsset
 {
     /**
-     * @var int
+     * @var integer
      */
-    protected $_allocationSize = 1;
+    protected $allocationSize = 1;
 
     /**
-     * @var int
+     * @var integer
      */
-    protected $_initialValue = 1;
+    protected $initialValue = 1;
 
     /**
-     *
-     * @param string $name
-     * @param int $allocationSize
-     * @param int $initialValue
+     * @var integer|null
      */
-    public function __construct($name, $allocationSize=1, $initialValue=1)
+    protected $cache = null;
+
+    /**
+     * @param string       $name
+     * @param integer      $allocationSize
+     * @param integer      $initialValue
+     * @param integer|null $cache
+     */
+    public function __construct($name, $allocationSize = 1, $initialValue = 1, $cache = null)
     {
         $this->_setName($name);
-        $this->_allocationSize = (is_numeric($allocationSize))?$allocationSize:1;
-        $this->_initialValue = (is_numeric($initialValue))?$initialValue:1;
-    }
-
-    public function getAllocationSize()
-    {
-        return $this->_allocationSize;
-    }
-
-    public function getInitialValue()
-    {
-        return $this->_initialValue;
-    }
-
-    public function setAllocationSize($allocationSize)
-    {
-        $this->_allocationSize = (is_numeric($allocationSize))?$allocationSize:1;
-    }
-
-    public function setInitialValue($initialValue)
-    {
-        $this->_initialValue = (is_numeric($initialValue))?$initialValue:1;
+        $this->allocationSize = is_numeric($allocationSize) ? $allocationSize : 1;
+        $this->initialValue = is_numeric($initialValue) ? $initialValue : 1;
+        $this->cache = $cache;
     }
 
     /**
-     * Check if this sequence is an autoincrement sequence for a given table.
+     * @return integer
+     */
+    public function getAllocationSize()
+    {
+        return $this->allocationSize;
+    }
+
+    /**
+     * @return integer
+     */
+    public function getInitialValue()
+    {
+        return $this->initialValue;
+    }
+
+    /**
+     * @return integer|null
+     */
+    public function getCache()
+    {
+        return $this->cache;
+    }
+
+    /**
+     * @param integer $allocationSize
+     *
+     * @return \Doctrine\DBAL\Schema\Sequence
+     */
+    public function setAllocationSize($allocationSize)
+    {
+        $this->allocationSize = is_numeric($allocationSize) ? $allocationSize : 1;
+
+        return $this;
+    }
+
+    /**
+     * @param integer $initialValue
+     *
+     * @return \Doctrine\DBAL\Schema\Sequence
+     */
+    public function setInitialValue($initialValue)
+    {
+        $this->initialValue = is_numeric($initialValue) ? $initialValue : 1;
+
+        return $this;
+    }
+
+    /**
+     * @param integer $cache
+     *
+     * @return \Doctrine\DBAL\Schema\Sequence
+     */
+    public function setCache($cache)
+    {
+        $this->cache = $cache;
+
+        return $this;
+    }
+
+    /**
+     * Checks if this sequence is an autoincrement sequence for a given table.
      *
      * This is used inside the comparator to not report sequences as missing,
      * when the "from" schema implicitly creates the sequences.
      *
-     * @param Table $table
+     * @param \Doctrine\DBAL\Schema\Table $table
      *
-     * @return bool
+     * @return boolean
      */
     public function isAutoIncrementsFor(Table $table)
     {
@@ -111,7 +155,9 @@ class Sequence extends AbstractAsset
     }
 
     /**
-     * @param Visitor $visitor
+     * @param \Doctrine\DBAL\Schema\Visitor\Visitor $visitor
+     *
+     * @return void
      */
     public function visit(Visitor $visitor)
     {
