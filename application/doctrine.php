@@ -9,9 +9,11 @@
 define('APPPATH', dirname(__FILE__) . '/');
 define('BASEPATH', APPPATH . '/../system/');
 define('ENVIRONMENT', 'development');
+define('VENDOR_PATH',APPPATH.'/../vendor/');
 
 chdir(APPPATH);
 
+include_once  VENDOR_PATH.'autoload.php';
 require __DIR__ . '/libraries/Doctrine.php';
 
 foreach ($GLOBALS as $helperSetCandidate) {
