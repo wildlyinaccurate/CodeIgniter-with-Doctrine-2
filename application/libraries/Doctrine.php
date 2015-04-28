@@ -17,9 +17,6 @@ class Doctrine
 
 	public function __construct()
 	{
-		require_once __DIR__ . '/Doctrine/ORM/Tools/Setup.php';
-		Setup::registerAutoloadDirectory(__DIR__);
-
 		// Load the database configuration from CodeIgniter
 		require APPPATH . 'config/database.php';
 
