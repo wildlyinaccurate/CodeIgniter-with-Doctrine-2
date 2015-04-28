@@ -1,0 +1,12 @@
+{
+    "name": "wildlyinaccurate/codeigniter-2-with-doctrine-2",
+    "require": {
+        "doctrine/orm": "2.5.0"
+    },
+    "authors": [
+        {
+            "name": "Joseph Wynn",
+            "email": "joseph@wildlyinaccurate.com"
+        }
+    ]
+}
