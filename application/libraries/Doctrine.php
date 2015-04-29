@@ -1,8 +1,10 @@
 <?php
 
-use Doctrine\Common\ClassLoader,
-	Doctrine\ORM\Tools\Setup,
-	Doctrine\ORM\EntityManager;
+include_once FCPATH . 'vendor/autoload.php';
+
+use Doctrine\Common\ClassLoader;
+use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\Tools\Setup;
 
 /**
  * Doctrine bootstrap library for CodeIgniter
