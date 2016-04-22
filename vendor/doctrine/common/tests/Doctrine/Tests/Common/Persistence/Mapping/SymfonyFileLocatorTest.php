@@ -55,11 +55,19 @@ class SymfonyFileLocatorTest extends DoctrineTestCase
         $prefix = "Foo";
 
         $locator = new SymfonyFileLocator(array($path => $prefix), ".yml");
-        $classes = $locator->getAllClassNames(null);
-        sort($classes);
+        $allClasses = $locator->getAllClassNames(null);
+        $globalClasses = $locator->getAllClassNames("global");
 
-        $this->assertEquals(array("Foo\\global", "Foo\\stdClass"), $classes);
-        $this->assertEquals(array("Foo\\stdClass"), $locator->getAllClassNames("global"));
+        $expectedAllClasses    = array("Foo\\Bar\\subDirClass", "Foo\\global", "Foo\\stdClass");
+        $expectedGlobalClasses = array("Foo\\Bar\\subDirClass", "Foo\\stdClass");
+
+        sort($allClasses);
+        sort($globalClasses);
+        sort($expectedAllClasses);
+        sort($expectedGlobalClasses);
+
+        $this->assertEquals($expectedAllClasses, $allClasses);
+        $this->assertEquals($expectedGlobalClasses, $globalClasses);
     }
 
     /**
@@ -166,8 +174,36 @@ class SymfonyFileLocatorTest extends DoctrineTestCase
 
         $this->setExpectedException(
             "Doctrine\Common\Persistence\Mapping\MappingException",
-            "No mapping file found named '".__DIR__."/_files/stdClass2.yml' for class 'Foo\stdClass2'."
+            "No mapping file found named 'stdClass2.yml' for class 'Foo\stdClass2'."
         );
         $locator->findMappingFile("Foo\\stdClass2");
+    }
+
+    public function testFindMappingFileLeastSpecificNamespaceFirst()
+    {
+        // Low -> High
+        $prefixes = array();
+        $prefixes[__DIR__ . "/_match_ns"] = "Foo";
+        $prefixes[__DIR__ . "/_match_ns/Bar"] = "Foo\\Bar";
+
+        $locator = new SymfonyFileLocator($prefixes, ".yml");
+
+        $this->assertEquals(
+            __DIR__ . "/_match_ns/Bar/barEntity.yml",
+            $locator->findMappingFile("Foo\\Bar\\barEntity")
+        );
+    }
+
+    public function testFindMappingFileMostSpecificNamespaceFirst() {
+        $prefixes = array();
+        $prefixes[__DIR__ . "/_match_ns/Bar"] = "Foo\\Bar";
+        $prefixes[__DIR__ . "/_match_ns"] = "Foo";
+
+        $locator = new SymfonyFileLocator($prefixes, ".yml");
+
+        $this->assertEquals(
+            __DIR__ . "/_match_ns/Bar/barEntity.yml",
+            $locator->findMappingFile("Foo\\Bar\\barEntity")
+        );
     }
 }
